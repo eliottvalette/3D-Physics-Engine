@@ -34,7 +34,8 @@ joint = Joint(
     object_1=forearm, 
     object_2=biceps, 
     face_1=1, 
-    face_2=3
+    face_2=3,
+    initial_angle=0.0  # Joint ouvert plat au début
 )
 
 # --- Contrôles caméra ---
@@ -83,6 +84,14 @@ while running:
         forearm.reset()
         biceps.reset()
     
+    # Contrôles du joint
+    if keys[K_r]:  # R = Plier le joint (diminuer l'angle)
+        current_angle = joint.angle
+        joint.set_angle(current_angle - 0.05)  # Plier de 0.05 radians
+    if keys[K_f]:  # F = Déplier le joint (augmenter l'angle)
+        current_angle = joint.angle
+        joint.set_angle(current_angle + 0.05)  # Déplier de 0.05 radians
+    
     # --- Mise à jour physique ---
     forearm.update()
     biceps.update()
@@ -105,14 +114,17 @@ while running:
     pos_text = f"Position: ({forearm.position[0]:.2f}, {forearm.position[1]:.2f}, {forearm.position[2]:.2f})"
     vel_text = f"Vitesse: ({forearm.velocity[0]:.2f}, {forearm.velocity[1]:.2f}, {forearm.velocity[2]:.2f})"
     cam_text = f"Caméra: ({camera.position[0]:.1f}, {camera.position[1]:.1f}, {camera.position[2]:.1f})"
+    joint_text = f"Angle joint: {math.degrees(joint.angle):.1f}°"
     
     pos_surface = font.render(pos_text, True, WHITE)
     vel_surface = font.render(vel_text, True, WHITE)
     cam_surface = font.render(cam_text, True, WHITE)
+    joint_surface = font.render(joint_text, True, WHITE)
     
     screen.blit(pos_surface, (10, 10))
     screen.blit(vel_surface, (10, 35))
     screen.blit(cam_surface, (10, 60))
+    screen.blit(joint_surface, (10, 85))
     
     # Instructions
     instructions = [
@@ -120,6 +132,7 @@ while running:
         "ZQSD - Déplacer caméra",
         "AE - Monter/Descendre caméra", 
         "Flèches - Rotation caméra",
+        "R/F - Plier/Déplier le joint",
         "Espace - Reset cube",
         "Échap - Quitter"
     ]

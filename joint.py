@@ -1,46 +1,78 @@
 import pygame
 import numpy as np
+import math
 from cube import Cube3D
 from camera import Camera3D
 from config import *
 
 class Joint:
-    def __init__(self, object_1: Cube3D, object_2: Cube3D, face_1: int, face_2: int):
+    def __init__(self, object_1: Cube3D, object_2: Cube3D, face_1: int, face_2: int, initial_angle=0.0):
         """
         object_1 : Cube3D
         object_2 : Cube3D
-        position_1 : np.array <- position du joint sur object_1
-        position_2 : np.array <- position du joint sur object_2
+        face_1 : int <- index de la face sur object_1
+        face_2 : int <- index de la face sur object_2
+        initial_angle : float <- angle initial du joint en radians (0 = ouvert plat)
         """
         self.object_1 = object_1
         self.object_2 = object_2
         self.face_1 = face_1
         self.face_2 = face_2
-        self.position_1 = self.object_1.get_face_center(face_1)
-        self.position_2 = self.object_2.get_face_center(face_2)
-        self.position = (self.position_1 + self.position_2) / 2
+        self.angle = initial_angle  # Angle du joint en radians
+        
+        # Calculer les positions initiales
+        self.update_positions()
 
-    def update(self):
-        """
-        Update la position du joint sur object_1 et object_2
-
-        Le joint est au milieu des deux points position_1 et position_2
-        """
+    def update_positions(self):
+        """Met à jour les positions des objets pour respecter l'angle du joint"""
+        # Le joint est au point de connexion entre les deux objets
+        # L'objet 1 (forearm) reste fixe, l'objet 2 (biceps) tourne autour du joint
+        
+        # Position du joint (point de connexion)
+        joint_position = self.object_1.get_face_center(self.face_1)
+        
+        # Calculer la direction du biceps basée sur l'angle
+        biceps_direction = np.array([
+            math.cos(self.angle),
+            math.sin(self.angle),
+            0.0
+        ])
+        
+        # Calculer la nouvelle position du biceps
+        # Le biceps doit être positionné pour que sa face 3 touche le joint
+        biceps_offset = biceps_direction * (self.object_2.x_length / 2)
+        self.object_2.position = joint_position + biceps_offset
+        
+        # Faire tourner le biceps selon l'angle du joint
+        # La rotation se fait autour de l'axe Z (perpendiculaire au plan XY)
+        self.object_2.rotation[2] = self.angle
+        
+        # Mettre à jour les positions des points de joint
         self.position_1 = self.object_1.get_face_center(self.face_1)
         self.position_2 = self.object_2.get_face_center(self.face_2)
         self.position = (self.position_1 + self.position_2) / 2
+
+    def set_angle(self, angle):
+        """Définit l'angle du joint et met à jour les positions"""
+        self.angle = angle
+        self.update_positions()
+
+    def update(self):
+        """Met à jour le joint (appelé chaque frame)"""
+        # Forcer les objets à respecter l'angle du joint
+        self.update_positions()
     
     def draw(self, screen: pygame.Surface, camera: Camera3D):
         """
         Dessine le joint sur l'écran
-        Le joint est un carré de 10x10 pixels
+        Le joint est un carré de 4x4 pixels
         et on trace les lignes qui relient le joint à object_1 et object_2
         """
         projected_position_1 = camera.project_3d_to_2d(self.position_1)
         projected_position_2 = camera.project_3d_to_2d(self.position_2)
         projected_position = camera.project_3d_to_2d(self.position)
 
-        # Dessiner le joint (carré de 10x10 pixels)
+        # Dessiner le joint (carré de 4x4 pixels)
         if projected_position:
             joint_size = 4
             joint_rect = pygame.Rect(

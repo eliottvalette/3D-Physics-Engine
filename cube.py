@@ -2,6 +2,7 @@ import numpy as np
 import pygame
 from config import *
 from camera import Camera3D
+import math
 
 class Cube3D:
     def __init__(self, position, x_length = 1, y_length = 1, z_length = 1):
@@ -45,12 +46,40 @@ class Cube3D:
         for x in [-self.x_length/2, self.x_length/2]:
             for y in [-self.y_length/2, self.y_length/2]:
                 for z in [-self.z_length/2, self.z_length/2]:
-                    vertex = self.position + np.array([x, y, z])
+                    vertex = np.array([x, y, z])
                     vertices.append(vertex)
+        
+        # Appliquer les rotations aux sommets
+        rotated_vertices = []
+        for vertex in vertices:
+            # Rotation autour de l'axe X (pitch)
+            cos_x = math.cos(self.rotation[0])
+            sin_x = math.sin(self.rotation[0])
+            y1 = vertex[1] * cos_x - vertex[2] * sin_x
+            z1 = vertex[1] * sin_x + vertex[2] * cos_x
+            rotated_vertex = np.array([vertex[0], y1, z1])
+            
+            # Rotation autour de l'axe Y (yaw)
+            cos_y = math.cos(self.rotation[1])
+            sin_y = math.sin(self.rotation[1])
+            x2 = rotated_vertex[0] * cos_y + rotated_vertex[2] * sin_y
+            z2 = -rotated_vertex[0] * sin_y + rotated_vertex[2] * cos_y
+            rotated_vertex = np.array([x2, rotated_vertex[1], z2])
+            
+            # Rotation autour de l'axe Z (roll)
+            cos_z = math.cos(self.rotation[2])
+            sin_z = math.sin(self.rotation[2])
+            x3 = rotated_vertex[0] * cos_z - rotated_vertex[1] * sin_z
+            y3 = rotated_vertex[0] * sin_z + rotated_vertex[1] * cos_z
+            rotated_vertex = np.array([x3, y3, rotated_vertex[2]])
+            
+            # Ajouter la position du cube
+            final_vertex = self.position + rotated_vertex
+            rotated_vertices.append(final_vertex)
         
         # Projeter tous les sommets
         projected_vertices = []
-        for vertex in vertices:
+        for vertex in rotated_vertices:
             projected = camera.project_3d_to_2d(vertex)
             if projected:  # projected peut etre None si le point est derrière la caméra
                 projected_vertices.append(projected)
@@ -84,18 +113,45 @@ class Cube3D:
     def get_face_center(self, face_index: int) -> np.array:
         """
         Retourne le centre de la face donnée par son index parmi les 6 faces
+        Prend en compte la rotation du cube
         """
+        # Définir le centre de la face dans le repère local du cube
         if face_index == 0:
-            return np.array([self.position[0], self.position[1] + self.y_length / 2, self.position[2]])
+            local_center = np.array([0, self.y_length / 2, 0])
         elif face_index == 1:
-            return np.array([self.position[0] + self.x_length / 2, self.position[1], self.position[2]])
+            local_center = np.array([self.x_length / 2, 0, 0])
         elif face_index == 2:
-            return np.array([self.position[0], self.position[1] - self.y_length / 2, self.position[2]])
+            local_center = np.array([0, -self.y_length / 2, 0])
         elif face_index == 3:
-            return np.array([self.position[0] - self.x_length / 2, self.position[1], self.position[2]])
+            local_center = np.array([-self.x_length / 2, 0, 0])
         elif face_index == 4:
-            return np.array([self.position[0], self.position[1], self.position[2] + self.z_length / 2])
+            local_center = np.array([0, 0, self.z_length / 2])
         elif face_index == 5:
-            return np.array([self.position[0], self.position[1], self.position[2] - self.z_length / 2])
+            local_center = np.array([0, 0, -self.z_length / 2])
         else:
             raise ValueError(f"Face index must be between 0 and 5, got {face_index}")
+        
+        # Appliquer les rotations
+        # Rotation autour de l'axe X (pitch)
+        cos_x = math.cos(self.rotation[0])
+        sin_x = math.sin(self.rotation[0])
+        y1 = local_center[1] * cos_x - local_center[2] * sin_x
+        z1 = local_center[1] * sin_x + local_center[2] * cos_x
+        rotated_center = np.array([local_center[0], y1, z1])
+        
+        # Rotation autour de l'axe Y (yaw)
+        cos_y = math.cos(self.rotation[1])
+        sin_y = math.sin(self.rotation[1])
+        x2 = rotated_center[0] * cos_y + rotated_center[2] * sin_y
+        z2 = -rotated_center[0] * sin_y + rotated_center[2] * cos_y
+        rotated_center = np.array([x2, rotated_center[1], z2])
+        
+        # Rotation autour de l'axe Z (roll)
+        cos_z = math.cos(self.rotation[2])
+        sin_z = math.sin(self.rotation[2])
+        x3 = rotated_center[0] * cos_z - rotated_center[1] * sin_z
+        y3 = rotated_center[0] * sin_z + rotated_center[1] * cos_z
+        rotated_center = np.array([x3, y3, rotated_center[2]])
+        
+        # Ajouter la position du cube
+        return self.position + rotated_center
