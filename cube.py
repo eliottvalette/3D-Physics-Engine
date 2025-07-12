@@ -1,14 +1,22 @@
 import numpy as np
 import pygame
 from config import *
+from camera import Camera3D
 
 class Cube3D:
-    def __init__(self, size, position):
-        self.size = float(size)
+    def __init__(self, position, x_length = 1, y_length = 1, z_length = 1):
+        self.initial_position = position.copy()
+        self.initial_velocity = np.array([0.0, 0.0, 0.0]).copy()
+        self.initial_rotation = np.array([0.0, 0.0, 0.0]).copy()
+        self.initial_angular_velocity = np.array([0.0, 0.0, 0.0]).copy()
+
         self.position = position # position en x, y, z
-        self.velocity = np.array([0.0, 0.0, 0.0], dtype=np.float64)
-        self.rotation = np.array([0.0, 0.0, 0.0], dtype=np.float64)  # rotation en radians
-        self.angular_velocity = np.array([0.0, 0.0, 0.0], dtype=np.float64)
+        self.velocity = np.array([0.0, 0.0, 0.0])
+        self.rotation = np.array([0.0, 0.0, 0.0])  # rotation en radians
+        self.angular_velocity = np.array([0.0, 0.0, 0.0])
+        self.x_length = float(x_length)
+        self.y_length = float(y_length)
+        self.z_length = float(z_length)
         
     def update(self):
         # Physique 3D complète
@@ -17,8 +25,8 @@ class Cube3D:
         self.rotation += self.angular_velocity * DT
         
         # Collision avec le sol (y = 0)
-        if self.position[1] - self.size / 2 < 0:
-            self.position[1] = self.size / 2
+        if self.position[1] - self.y_length / 2 < 0:
+            self.position[1] = self.y_length / 2
             self.velocity[1] *= -0.7  # rebond avec perte d'énergie
             self.velocity[0] *= 0.95  # friction
             self.velocity[2] *= 0.95  # friction
@@ -26,19 +34,18 @@ class Cube3D:
         # Collision avec les murs
         wall_size = 10
         for i in [0, 2]:  # x et z
-            if abs(self.position[i]) + self.size / 2 > wall_size:
-                self.position[i] = np.sign(self.position[i]) * (wall_size - self.size / 2)
+            if abs(self.position[i]) + self.x_length / 2 > wall_size:
+                self.position[i] = np.sign(self.position[i]) * (wall_size - self.x_length / 2)
                 self.velocity[i] *= -0.8
     
-    def draw(self, screen: pygame.Surface, camera):
+    def draw(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le cube 3D avec projection et profondeur"""
         # Calculer les 8 sommets du cube
-        half_size = self.size / 2
         vertices = []
-        for x in [-half_size, half_size]:
-            for y in [-half_size, half_size]:
-                for z in [-half_size, half_size]:
-                    vertex = self.position + np.array([x, y, z], dtype=np.float64)
+        for x in [-self.x_length/2, self.x_length/2]:
+            for y in [-self.y_length/2, self.y_length/2]:
+                for z in [-self.z_length/2, self.z_length/2]:
+                    vertex = self.position + np.array([x, y, z])
                     vertices.append(vertex)
         
         # Projeter tous les sommets
@@ -66,4 +73,29 @@ class Cube3D:
                 # Vérifier que les coordonnées sont valides
                 if (0 <= start[0] < WINDOW_WIDTH and 0 <= start[1] < WINDOW_HEIGHT and
                     0 <= end[0] < WINDOW_WIDTH and 0 <= end[1] < WINDOW_HEIGHT):
-                    pygame.draw.line(screen, RED, start, end, 2)
+                    pygame.draw.line(screen, WHITE, start, end, 2)
+    
+    def reset(self):
+        self.position = self.initial_position.copy()
+        self.velocity = self.initial_velocity.copy()
+        self.rotation = self.initial_rotation.copy()
+        self.angular_velocity = self.initial_angular_velocity.copy()
+    
+    def get_face_center(self, face_index: int) -> np.array:
+        """
+        Retourne le centre de la face donnée par son index parmi les 6 faces
+        """
+        if face_index == 0:
+            return np.array([self.position[0], self.position[1] + self.y_length / 2, self.position[2]])
+        elif face_index == 1:
+            return np.array([self.position[0] + self.x_length / 2, self.position[1], self.position[2]])
+        elif face_index == 2:
+            return np.array([self.position[0], self.position[1] - self.y_length / 2, self.position[2]])
+        elif face_index == 3:
+            return np.array([self.position[0] - self.x_length / 2, self.position[1], self.position[2]])
+        elif face_index == 4:
+            return np.array([self.position[0], self.position[1], self.position[2] + self.z_length / 2])
+        elif face_index == 5:
+            return np.array([self.position[0], self.position[1], self.position[2] - self.z_length / 2])
+        else:
+            raise ValueError(f"Face index must be between 0 and 5, got {face_index}")

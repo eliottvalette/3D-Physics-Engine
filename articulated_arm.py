@@ -5,7 +5,8 @@ from pygame.locals import *
 from config import *
 from camera import Camera3D
 from cube import Cube3D
-from ground import Ground        
+from ground import Ground
+from joint import Joint
     
 
 # --- Initialisation Pygame ---
@@ -16,13 +17,25 @@ clock = pygame.time.Clock()
 
 # --- Objets du monde ---
 camera = Camera3D()
-cube = Cube3D(
-        position=np.array([1.0, 8.0, 1.0]),
-        x_length=5.0,
-        y_length=2.0,
-        z_length=3.0
-    )
 ground = Ground(size=20)
+forearm = Cube3D(
+    position=np.array([1.0, 8.0, 1.0]),
+    x_length=3.0,
+    y_length=1.0,
+    z_length=1.0
+)
+biceps = Cube3D(
+    position=np.array([4.2, 8.0, 1.0]),
+    x_length=2.0,
+    y_length=1.0,
+    z_length=1.0
+)
+joint = Joint(
+    object_1=forearm, 
+    object_2=biceps, 
+    face_1=1, 
+    face_2=3
+)
 
 # --- Contrôles caméra ---
 camera_speed = 0.1
@@ -67,10 +80,13 @@ while running:
         camera.rotation[0] -= rotation_speed
 
     if keys[K_SPACE]:
-        cube.reset()
+        forearm.reset()
+        biceps.reset()
     
     # --- Mise à jour physique ---
-    cube.update()
+    forearm.update()
+    biceps.update()
+    joint.update()
     
     # --- Rendu ---
     screen.fill(BLACK)
@@ -78,14 +94,16 @@ while running:
     # Dessiner le monde 3D
     ground.draw(screen, camera)
     ground.draw_axes(screen, camera)
-    cube.draw(screen, camera)
+    forearm.draw(screen, camera)
+    biceps.draw(screen, camera)
+    joint.draw(screen, camera)
     
     # --- Interface utilisateur ---
     font = pygame.font.Font(None, 24)
     
     # Informations de position
-    pos_text = f"Position: ({cube.position[0]:.2f}, {cube.position[1]:.2f}, {cube.position[2]:.2f})"
-    vel_text = f"Vitesse: ({cube.velocity[0]:.2f}, {cube.velocity[1]:.2f}, {cube.velocity[2]:.2f})"
+    pos_text = f"Position: ({forearm.position[0]:.2f}, {forearm.position[1]:.2f}, {forearm.position[2]:.2f})"
+    vel_text = f"Vitesse: ({forearm.velocity[0]:.2f}, {forearm.velocity[1]:.2f}, {forearm.velocity[2]:.2f})"
     cam_text = f"Caméra: ({camera.position[0]:.1f}, {camera.position[1]:.1f}, {camera.position[2]:.1f})"
     
     pos_surface = font.render(pos_text, True, WHITE)

@@ -12,7 +12,7 @@ class Ground:
         for x in range(-self.size, self.size + 1):
             for z in range(-self.size, self.size + 1):
                 # Créer un point au sol
-                point_3d = np.array([x, 0, z], dtype=np.float64)
+                point_3d = np.array([x, 0, z])
                 projected = camera.project_3d_to_2d(point_3d)
                 
                 if projected:
@@ -31,11 +31,11 @@ class Ground:
     
     def draw_axes(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine les axes 3D pour référence"""
-        origin = np.array([0, 0, 0], dtype=np.float64)
+        origin = np.array([0, 0, 0])
         axes = [
-            (np.array([5, 0, 0], dtype=np.float64), RED),    # X
-            (np.array([0, 5, 0], dtype=np.float64), GREEN),  # Y  
-            (np.array([0, 0, 5], dtype=np.float64), BLUE)    # Z
+            (np.array([5, 0, 0]), RED),    # X
+            (np.array([0, 5, 0]), GREEN),  # Y  
+            (np.array([0, 0, 5]), BLUE)    # Z
         ]
         
         for axis_end, color in axes:
