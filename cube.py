@@ -100,28 +100,28 @@ class Cube3D:
         # Pour chaque sommet, vérifier la collision avec le sol
         for vertex in self.rotated_vertices:
             if vertex[1] < 0:
-                # Position du sommet par rapport au centre de masse
-                r = vertex - self.position
+                # Position du sommet par rapport au centre de masse (c'est ce qui permet de casser la symétrie de la force d'impulsion)
+                relative_position = vertex - self.position
                 # Vitesse du sommet (translation + rotation)
-                v_vertex = self.velocity + np.cross(self.angular_velocity, r)
+                vertex_velocity = self.velocity + np.cross(self.angular_velocity, relative_position)
                 # Si le sommet descend, on annule la composante verticale
-                if v_vertex[1] < 0:
+                if vertex_velocity[1] < 0:
                     # Impulsion nécessaire pour annuler la vitesse verticale
-                    n = np.array([0, 1, 0])  # normale du sol
-                    v_rel = np.dot(v_vertex, n)
+                    normal = np.array([0, 1, 0])  # normale du sol
+                    relative_velocity = np.dot(vertex_velocity, normal)
                     # Calcul de l'impulsion scalaire
-                    r_cross_n = np.cross(r, n)
-                    denom = (1/mass) + np.dot(n, np.cross(np.divide(r_cross_n, I, out=np.zeros_like(r_cross_n), where=I!=0), r))
+                    r_cross_n = np.cross(relative_position, normal)
+                    denom = (1/mass) + np.dot(normal, np.cross(np.divide(r_cross_n, I, out=np.zeros_like(r_cross_n), where=I!=0), relative_position))
                     if denom == 0:
                         continue
-                    j = -v_rel / denom
+                    scalar_impulse = -relative_velocity / denom
                     # Appliquer l'impulsion au centre de masse
-                    self.velocity += (j * n) / mass
+                    self.velocity += (scalar_impulse * normal) / mass
                     # Appliquer l'impulsion angulaire
-                    self.angular_velocity += np.divide(np.cross(r, j * n), I, out=np.zeros(3), where=I!=0)
+                    self.angular_velocity += np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0)
                 
                 # Replacer le sommet sur le sol en ajustant la position du centre de masse
-                self.position[1] = max(self.position[1], -r[1])
+                self.position[1] = max(self.position[1], -relative_position[1])
 
         # Optionnel : limiter la rotation pour éviter les dérives numériques
         self.rotation = np.mod(self.rotation, 2 * np.pi)
