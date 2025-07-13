@@ -5,15 +5,16 @@ from camera import Camera3D
 import math
 
 class Cube3D:
-    def __init__(self, position, x_length = 1, y_length = 1, z_length = 1):
+    def __init__(self, position, x_length = 1, y_length = 1, z_length = 1, rotation = np.array([0.0, 0.0, 0.0])):
         self.initial_position = position.copy()
         self.initial_velocity = np.array([0.0, 0.0, 0.0]).copy()
         self.initial_rotation = np.array([0.0, 0.0, 0.0]).copy()
         self.initial_angular_velocity = np.array([0.0, 0.0, 0.0]).copy()
+        self.initial_rotation = rotation.copy()
 
         self.position = position # position en x, y, z
         self.velocity = np.array([0.0, 0.0, 0.0])
-        self.rotation = np.array([0.0, 0.0, 0.0])  # rotation en radians
+        self.rotation = rotation # rotation en radians
         self.angular_velocity = np.array([0.0, 0.0, 0.0])
         self.x_length = float(x_length)
         self.y_length = float(y_length)
@@ -21,7 +22,7 @@ class Cube3D:
 
         self.rotated_vertices = self.get_vertices()
         
-    def update_ground_only(self):
+    def update_ground_only_simple(self):
         # Mettre à jour les sommets du cube
         self.rotated_vertices = self.get_vertices()
 
@@ -43,10 +44,94 @@ class Cube3D:
             if abs(self.position[i]) + self.x_length / 2 > wall_size:
                 self.position[i] = np.sign(self.position[i]) * (wall_size - self.x_length / 2)
                 self.velocity[i] *= -0.8
+
+    def update_ground_only_complex(self):
+        """
+        Collision plus complexe entre le cube (les sommets pour simplifier les calculs)
+        et le sol (plat à une hauteur fixe). Si un sommet passe sous le sol, on applique une force verticale
+        pour l'empêcher de passer sous le sol, ce qui modifie la vitesse linéaire et angulaire du cube.
+        Pas de rebond, c'est un bloc de ciment sur du ciment.
+        """
+        # Mettre à jour les sommets du cube
+        self.rotated_vertices = self.get_vertices()
+
+        # Constantes physiques
+        mass = 1.0
+        # Tenseur d'inertie d'un pavé droit homogène (diagonal)
+        I = np.array([
+            (1/12) * mass * (self.y_length**2 + self.z_length**2),
+            (1/12) * mass * (self.x_length**2 + self.z_length**2),
+            (1/12) * mass * (self.x_length**2 + self.y_length**2)
+        ])
+
+        # Appliquer la gravité au centre de masse
+        self.velocity += GRAVITY * DT
+
+        # Mise à jour de la position et de la rotation
+        self.position += self.velocity * DT
+        self.rotation += self.angular_velocity * DT
+        
+        # Recalculer les sommets après mise à jour
+        self.rotated_vertices = self.get_vertices()
+        
+        # Trier les sommets du plus proche du sol au plus loin
+        sorted_vertices = sorted(self.rotated_vertices, key=lambda v: v[1])
+        # is_close_to_ground si le plus proche <= 0.03
+        is_close_to_ground = sorted_vertices[0][1] <= 0.03
+        # is_on_ground si au moins 3 sommets sont <= 0.03
+        is_on_ground = sorted_vertices[2][1] <= 0.03
+
+        # Si le cube est au sol, appliquer une stabilisation plus agressive
+        if is_close_to_ground:
+            # Réduire drastiquement les vitesses horizontales et angulaires
+            self.velocity[0] *= 0.9
+            self.velocity[2] *= 0.9
+            self.angular_velocity *= 0.9
+        
+        if is_on_ground:
+            # Réduire drastiquement les vitesses horizontales et angulaires
+            self.velocity[0] *= 0.2
+            self.velocity[2] *= 0.2
+            self.angular_velocity *= 0.2
+
+            # Réduire drastiquement la vitesse verticale
+            self.velocity[1] *= 0.2
+
+        # Pour chaque sommet, vérifier la collision avec le sol
+        for vertex in self.rotated_vertices:
+            if vertex[1] < 0:
+                # Position du sommet par rapport au centre de masse
+                r = vertex - self.position
+                # Vitesse du sommet (translation + rotation)
+                v_vertex = self.velocity + np.cross(self.angular_velocity, r)
+                # Si le sommet descend, on annule la composante verticale
+                if v_vertex[1] < 0:
+                    # Impulsion nécessaire pour annuler la vitesse verticale
+                    n = np.array([0, 1, 0])  # normale du sol
+                    v_rel = np.dot(v_vertex, n)
+                    # Calcul de l'impulsion scalaire
+                    r_cross_n = np.cross(r, n)
+                    denom = (1/mass) + np.dot(n, np.cross(np.divide(r_cross_n, I, out=np.zeros_like(r_cross_n), where=I!=0), r))
+                    if denom == 0:
+                        continue
+                    j = -v_rel / denom
+                    # Appliquer l'impulsion au centre de masse
+                    self.velocity += (j * n) / mass
+                    # Appliquer l'impulsion angulaire
+                    self.angular_velocity += np.divide(np.cross(r, j * n), I, out=np.zeros(3), where=I!=0)
+                
+                # Replacer le sommet sur le sol en ajustant la position du centre de masse
+                self.position[1] = max(self.position[1], -r[1])
+
+        # Optionnel : limiter la rotation pour éviter les dérives numériques
+        self.rotation = np.mod(self.rotation, 2 * np.pi)
     
     def update_on_world_points(self, world_points: list[np.array]):
-        # Collision avancée etre le cube (les sommets pour simplifier les calculs)
-        # et les points du monde
+        """
+        Collision avancée entre le cube (les sommets pour simplifier les calculs)
+        et les points du monde. Pour ne pas avoir a calculer les collisions avec tous les points du monde,
+        on ne prend que les points du monde qui sont dans la verticalité de la large bounding box du cube
+        """
         
         # TODO :
         pass
@@ -56,6 +141,7 @@ class Cube3D:
         self.velocity = self.initial_velocity.copy()
         self.rotation = self.initial_rotation.copy()
         self.angular_velocity = self.initial_angular_velocity.copy()
+        self.rotation = self.initial_rotation.copy()
     
     def get_face_center(self, face_index: int) -> np.array:
         """
@@ -131,7 +217,7 @@ class Cube3D:
             projected = camera.project_3d_to_2d(vertex)
             if projected:
                 projected_vertices.append(projected)
-        return projected_vertices
+        return vertices, projected_vertices
         
     
     def get_vertices(self):
@@ -205,7 +291,7 @@ class Cube3D:
         
     def draw_bounding_box(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le grand rectangle englobant le cube"""
-        projected_large_vertices = self.get_large_bounding_box(camera)
+        _, projected_large_vertices = self.get_large_bounding_box(camera)
 
         # Dessiner les faces du cube (simplifié - juste les arêtes)
         edges = [

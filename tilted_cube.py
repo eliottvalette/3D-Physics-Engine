@@ -1,5 +1,6 @@
 import pygame
 import numpy as np
+import random as rd
 import math
 from pygame.locals import *
 from config import *
@@ -20,9 +21,9 @@ cube = Cube3D(
         position=np.array([1.0, 8.0, 1.0]),
         x_length=5.0,
         y_length=2.0,
-        z_length=3.0
+        z_length=3.0,
+        rotation=np.array([1.0, 1.0, 1.0])
     )
-cube.rotation = np.array([1.0, 1.0, 1.0])
 ground = Ground(size=20)
 
 # --- Contrôles caméra ---
@@ -71,7 +72,7 @@ while running:
         cube.reset()
     
     # --- Mise à jour physique ---
-    cube.update_ground_only()
+    cube.update_ground_only_complex()
     
     # --- Rendu ---
     screen.fill(BLACK)
@@ -80,7 +81,6 @@ while running:
     ground.draw(screen, camera)
     ground.draw_axes(screen, camera)
     cube.draw(screen, camera)
-    cube.draw_bounding_box(screen, camera)
     
     # --- Interface utilisateur ---
     font = pygame.font.Font(None, 24)
@@ -89,14 +89,22 @@ while running:
     pos_text = f"Position: ({cube.position[0]:.2f}, {cube.position[1]:.2f}, {cube.position[2]:.2f})"
     vel_text = f"Vitesse: ({cube.velocity[0]:.2f}, {cube.velocity[1]:.2f}, {cube.velocity[2]:.2f})"
     cam_text = f"Caméra: ({camera.position[0]:.1f}, {camera.position[1]:.1f}, {camera.position[2]:.1f})"
+    angular_vel_text = f"Rotation: ({cube.angular_velocity[0]:.2f}, {cube.angular_velocity[1]:.2f}, {cube.angular_velocity[2]:.2f})"
     
+    if rd.random() < 0.1:
+        print(pos_text)
+        print(vel_text)
+        print(angular_vel_text)
+
     pos_surface = font.render(pos_text, True, WHITE)
     vel_surface = font.render(vel_text, True, WHITE)
     cam_surface = font.render(cam_text, True, WHITE)
+    angular_vel_surface = font.render(angular_vel_text, True, WHITE)
     
     screen.blit(pos_surface, (10, 10))
     screen.blit(vel_surface, (10, 35))
     screen.blit(cam_surface, (10, 60))
+    screen.blit(angular_vel_surface, (10, 85))
     
     # Instructions
     instructions = [
