@@ -58,7 +58,12 @@ class FloorAndWall:
         self._3d_world_points = []
     
     def draw(self, screen: pygame.Surface, camera: Camera3D):
-        """Dessine le sol puis le mur en 3D"""
+        """
+        Dessine le sol puis le mur en 3D
+        Le sol est un carré de 20x20, à hauteur y=0
+        Le mur est un carré de 20x10, en x=10. 
+        Le mur est vertical, normal à l'axe X (c'est-à-dire que sa normale pointe selon +X).
+        """
         for x in range(-self.size, self.size + 1):
             for z in range(-self.size, self.size + 1):
                 # Créer un point au sol
