@@ -18,8 +18,13 @@ class Cube3D:
         self.x_length = float(x_length)
         self.y_length = float(y_length)
         self.z_length = float(z_length)
+
+        self.rotated_vertices = self.get_vertices()
         
     def update_ground_only(self):
+        # Mettre à jour les sommets du cube
+        self.rotated_vertices = self.get_vertices()
+
         # Physique 3D complète
         self.velocity += GRAVITY * DT
         self.position += self.velocity * DT
@@ -40,170 +45,11 @@ class Cube3D:
                 self.velocity[i] *= -0.8
     
     def update_on_world_points(self, world_points: list[np.array]):
-        """
-        Collision avancée entre le cube (les sommets pour simplifier les calculs)
-        et les points du monde
-        """
+        # Collision avancée etre le cube (les sommets pour simplifier les calculs)
+        # et les points du monde
         
-        # Calculer les 8 sommets du cube dans l'espace monde
-        vertices = []
-        for x in [-self.x_length/2, self.x_length/2]:
-            for y in [-self.y_length/2, self.y_length/2]:
-                for z in [-self.z_length/2, self.z_length/2]:
-                    vertex = np.array([x, y, z])
-                    vertices.append(vertex)
-        
-        # Appliquer les rotations aux sommets (A partir de la rotation initiale du cube avant gestion des collisions)
-        rotated_vertices = []
-        for vertex in vertices:
-            # Rotation autour de l'axe X (pitch)
-            cos_x = math.cos(self.rotation[0])
-            sin_x = math.sin(self.rotation[0])
-            y1 = vertex[1] * cos_x - vertex[2] * sin_x
-            z1 = vertex[1] * sin_x + vertex[2] * cos_x
-            rotated_vertex = np.array([vertex[0], y1, z1])
-            
-            # Rotation autour de l'axe Y (yaw)
-            cos_y = math.cos(self.rotation[1])
-            sin_y = math.sin(self.rotation[1])
-            x2 = rotated_vertex[0] * cos_y + rotated_vertex[2] * sin_y
-            z2 = -rotated_vertex[0] * sin_y + rotated_vertex[2] * cos_y
-            rotated_vertex = np.array([x2, rotated_vertex[1], z2])
-            
-            # Rotation autour de l'axe Z (roll)
-            cos_z = math.cos(self.rotation[2])
-            sin_z = math.sin(self.rotation[2])
-            x3 = rotated_vertex[0] * cos_z - rotated_vertex[1] * sin_z
-            y3 = rotated_vertex[0] * sin_z + rotated_vertex[1] * cos_z
-            rotated_vertex = np.array([x3, y3, rotated_vertex[2]])
-            
-            # Ajouter la position du cube
-            world_vertex = self.position + rotated_vertex
-            rotated_vertices.append(world_vertex)
-        
-        # Vérifier les collisions pour chaque sommet
-        collision_forces = []
-        collision_torques = []
-        
-        for i, vertex in enumerate(rotated_vertices):
-            # Vérifier collision avec le sol (y = 0)
-            if vertex[1] < 0:
-                # Force de répulsion vers le haut
-                force = np.array([0.0, 20.0, 0.0])  # Force vers le haut
-                collision_forces.append(force)
-                
-                # Calculer le couple créé par cette force
-                r = vertex - self.position  # Vecteur du centre au sommet
-                torque = np.cross(r, force)
-                collision_torques.append(torque)
-            
-            # Vérifier collision avec chaque point du monde (pour les obstacles)
-            for world_point in world_points:
-                # Ignorer les points au sol (y = 0) car déjà géré ci-dessus
-                if world_point[1] == 0:
-                    continue
-                    
-                # Distance entre le sommet et le point du monde
-                distance = np.linalg.norm(vertex - world_point)
-                
-                # Si collision détectée (distance très petite)
-                if distance < 0.2:  # Seuil de collision
-                    # Calculer la force de répulsion
-                    direction = (vertex - world_point) / (distance + 1e-6)  # Éviter division par zéro
-                    force_magnitude = 15.0  # Force de répulsion
-                    force = direction * force_magnitude
-                    
-                    collision_forces.append(force)
-                    
-                    # Calculer le couple (torque) créé par cette force
-                    # Le couple = r × F où r est le vecteur du centre de masse au point d'application
-                    r = vertex - self.position  # Vecteur du centre au sommet
-                    torque = np.cross(r, force)
-                    collision_torques.append(torque)
-        
-        # Appliquer les forces et couples résultants
-        if collision_forces:
-            # Force totale
-            total_force = np.sum(collision_forces, axis=0)
-            self.velocity += total_force * DT
-            
-            # Couple total
-            total_torque = np.sum(collision_torques, axis=0)
-            self.angular_velocity += total_torque * DT * 0.1  # Facteur d'amortissement pour la rotation
-        
-        # Appliquer la physique de base
-        self.velocity += GRAVITY * DT
-        self.position += self.velocity * DT
-        self.rotation += self.angular_velocity * DT
-        
-        # Amortissement des vitesses
-        self.velocity *= 0.98
-        self.angular_velocity *= 0.92
-    
-    def draw(self, screen: pygame.Surface, camera: Camera3D):
-        """Dessine le cube 3D avec projection et profondeur"""
-        # Calculer les 8 sommets du cube
-        vertices = []
-        for x in [-self.x_length/2, self.x_length/2]:
-            for y in [-self.y_length/2, self.y_length/2]:
-                for z in [-self.z_length/2, self.z_length/2]:
-                    vertex = np.array([x, y, z])
-                    vertices.append(vertex)
-        
-        # Appliquer les rotations aux sommets
-        rotated_vertices = []
-        for vertex in vertices:
-            # Rotation autour de l'axe X (pitch)
-            cos_x = math.cos(self.rotation[0])
-            sin_x = math.sin(self.rotation[0])
-            y1 = vertex[1] * cos_x - vertex[2] * sin_x
-            z1 = vertex[1] * sin_x + vertex[2] * cos_x
-            rotated_vertex = np.array([vertex[0], y1, z1])
-            
-            # Rotation autour de l'axe Y (yaw)
-            cos_y = math.cos(self.rotation[1])
-            sin_y = math.sin(self.rotation[1])
-            x2 = rotated_vertex[0] * cos_y + rotated_vertex[2] * sin_y
-            z2 = -rotated_vertex[0] * sin_y + rotated_vertex[2] * cos_y
-            rotated_vertex = np.array([x2, rotated_vertex[1], z2])
-            
-            # Rotation autour de l'axe Z (roll)
-            cos_z = math.cos(self.rotation[2])
-            sin_z = math.sin(self.rotation[2])
-            x3 = rotated_vertex[0] * cos_z - rotated_vertex[1] * sin_z
-            y3 = rotated_vertex[0] * sin_z + rotated_vertex[1] * cos_z
-            rotated_vertex = np.array([x3, y3, rotated_vertex[2]])
-            
-            # Ajouter la position du cube
-            final_vertex = self.position + rotated_vertex
-            rotated_vertices.append(final_vertex)
-        
-        # Projeter tous les sommets
-        projected_vertices = []
-        for vertex in rotated_vertices:
-            projected = camera.project_3d_to_2d(vertex)
-            if projected:  # projected peut etre None si le point est derrière la caméra
-                projected_vertices.append(projected)
-        
-        if len(projected_vertices) < 8:
-            return  # Le cube est partiellement hors champ de vision, on ne dessine pas les faces
-        
-        # Dessiner les faces du cube (simplifié - juste les arêtes)
-        edges = [
-            (0, 1), (1, 3), (3, 2), (2, 0),  # Face avant
-            (4, 5), (5, 7), (7, 6), (6, 4),  # Face arrière
-            (0, 4), (1, 5), (2, 6), (3, 7)   # Arêtes verticales
-        ]
-        
-        # Dessiner les arêtes
-        for edge in edges:
-            if edge[0] < len(projected_vertices) and edge[1] < len(projected_vertices):
-                start = projected_vertices[edge[0]][:2]
-                end = projected_vertices[edge[1]][:2]
-                # Vérifier que les coordonnées sont valides
-                if (0 <= start[0] < WINDOW_WIDTH and 0 <= start[1] < WINDOW_HEIGHT and
-                    0 <= end[0] < WINDOW_WIDTH and 0 <= end[1] < WINDOW_HEIGHT):
-                    pygame.draw.line(screen, WHITE, start, end, 2)
+        # TODO :
+        pass
     
     def reset(self):
         self.position = self.initial_position.copy()
@@ -256,3 +102,126 @@ class Cube3D:
         
         # Ajouter la position du cube
         return self.position + rotated_center
+
+    def get_large_bounding_box(self, camera: Camera3D):
+        """
+        Retourne le grand pavé droit englobant le cube a partir des sommets du cube
+
+        Ce pavé doit aura une rotation nulle dans le plan orthonormé x, y, z
+        et une position qui correspond au centre du cube
+        """
+        # Calculer la bounding box 3D
+        x_min = min(vertex[0] for vertex in self.rotated_vertices)
+        y_min = min(vertex[1] for vertex in self.rotated_vertices)
+        z_min = min(vertex[2] for vertex in self.rotated_vertices)
+        x_max = max(vertex[0] for vertex in self.rotated_vertices)
+        y_max = max(vertex[1] for vertex in self.rotated_vertices)
+        z_max = max(vertex[2] for vertex in self.rotated_vertices)
+        
+        # On détermine les 8 sommets du pavé droit
+        vertices = []
+        for x in [x_min, x_max]:
+            for y in [y_min, y_max]:
+                for z in [z_min, z_max]:
+                    vertices.append(np.array([x, y, z]))
+        
+        # On les projette sur le plan x, z
+        projected_vertices = []
+        for vertex in vertices:
+            projected = camera.project_3d_to_2d(vertex)
+            if projected:
+                projected_vertices.append(projected)
+        return projected_vertices
+        
+    
+    def get_vertices(self):
+        """Retourne les 8 sommets du cube dans le repère monde"""
+        # Calculer les 8 sommets du cube
+        vertices = []
+        for x in [-self.x_length/2, self.x_length/2]:
+            for y in [-self.y_length/2, self.y_length/2]:
+                for z in [-self.z_length/2, self.z_length/2]:
+                    vertex = np.array([x, y, z])
+                    vertices.append(vertex)
+        
+        # Appliquer les rotations aux sommets
+        rotated_vertices = []
+        for vertex in vertices:
+            # Rotation autour de l'axe X (pitch)
+            cos_x = math.cos(self.rotation[0])
+            sin_x = math.sin(self.rotation[0])
+            y1 = vertex[1] * cos_x - vertex[2] * sin_x
+            z1 = vertex[1] * sin_x + vertex[2] * cos_x
+            rotated_vertex = np.array([vertex[0], y1, z1])
+            
+            # Rotation autour de l'axe Y (yaw)
+            cos_y = math.cos(self.rotation[1])
+            sin_y = math.sin(self.rotation[1])
+            x2 = rotated_vertex[0] * cos_y + rotated_vertex[2] * sin_y
+            z2 = -rotated_vertex[0] * sin_y + rotated_vertex[2] * cos_y
+            rotated_vertex = np.array([x2, rotated_vertex[1], z2])
+            
+            # Rotation autour de l'axe Z (roll)
+            cos_z = math.cos(self.rotation[2])
+            sin_z = math.sin(self.rotation[2])
+            x3 = rotated_vertex[0] * cos_z - rotated_vertex[1] * sin_z
+            y3 = rotated_vertex[0] * sin_z + rotated_vertex[1] * cos_z
+            rotated_vertex = np.array([x3, y3, rotated_vertex[2]])
+            
+            # Ajouter la position du cube
+            final_vertex = self.position + rotated_vertex
+            rotated_vertices.append(final_vertex)
+        
+        return rotated_vertices
+
+    def draw(self, screen: pygame.Surface, camera: Camera3D):
+        """Dessine le cube 3D avec projection et profondeur"""        
+        # Projeter tous les sommets
+        projected_vertices = []
+        for vertex in self.rotated_vertices:
+            projected = camera.project_3d_to_2d(vertex)
+            if projected:  # projected peut etre None si le point est derrière la caméra
+                projected_vertices.append(projected)
+        
+        if len(projected_vertices) < 8:
+            return  # Le cube est partiellement hors champ de vision, on ne dessine pas les faces
+        
+        # Dessiner les faces du cube (simplifié - juste les arêtes)
+        edges = [
+            (0, 1), (1, 3), (3, 2), (2, 0),  # Face avant
+            (4, 5), (5, 7), (7, 6), (6, 4),  # Face arrière
+            (0, 4), (1, 5), (2, 6), (3, 7)   # Arêtes verticales
+        ]
+        
+        # Dessiner les arêtes
+        for edge in edges:
+            if edge[0] < len(projected_vertices) and edge[1] < len(projected_vertices):
+                start = projected_vertices[edge[0]][:2]
+                end = projected_vertices[edge[1]][:2]
+                # Vérifier que les coordonnées sont valides
+                if (0 <= start[0] < WINDOW_WIDTH and 0 <= start[1] < WINDOW_HEIGHT and
+                    0 <= end[0] < WINDOW_WIDTH and 0 <= end[1] < WINDOW_HEIGHT):
+                    pygame.draw.line(screen, WHITE, start, end, 2)
+        
+    def draw_bounding_box(self, screen: pygame.Surface, camera: Camera3D):
+        """Dessine le grand rectangle englobant le cube"""
+        projected_large_vertices = self.get_large_bounding_box(camera)
+
+        # Dessiner les faces du cube (simplifié - juste les arêtes)
+        edges = [
+            (0, 1), (1, 3), (3, 2), (2, 0),  # Face avant
+            (4, 5), (5, 7), (7, 6), (6, 4),  # Face arrière
+            (0, 4), (1, 5), (2, 6), (3, 7)   # Arêtes verticales
+        ]
+        
+        # Dessiner les arêtes
+        for edge in edges:
+            if edge[0] < len(projected_large_vertices) and edge[1] < len(projected_large_vertices):
+                start = projected_large_vertices[edge[0]][:2]
+                end = projected_large_vertices[edge[1]][:2]
+                # Vérifier que les coordonnées sont valides
+                if (0 <= start[0] < WINDOW_WIDTH and 0 <= start[1] < WINDOW_HEIGHT and
+                    0 <= end[0] < WINDOW_WIDTH and 0 <= end[1] < WINDOW_HEIGHT):
+                    pygame.draw.line(screen, WHITE, start, end, 2)
+
+        

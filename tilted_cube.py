@@ -71,7 +71,7 @@ while running:
         cube.reset()
     
     # --- Mise à jour physique ---
-    cube.update_on_world_points(ground.get_world_points())
+    cube.update_ground_only()
     
     # --- Rendu ---
     screen.fill(BLACK)
@@ -80,6 +80,7 @@ while running:
     ground.draw(screen, camera)
     ground.draw_axes(screen, camera)
     cube.draw(screen, camera)
+    cube.draw_bounding_box(screen, camera)
     
     # --- Interface utilisateur ---
     font = pygame.font.Font(None, 24)

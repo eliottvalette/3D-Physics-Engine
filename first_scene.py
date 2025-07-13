@@ -79,6 +79,7 @@ while running:
     ground.draw(screen, camera)
     ground.draw_axes(screen, camera)
     cube.draw(screen, camera)
+    cube.draw_bounding_box(screen, camera)
     
     # --- Interface utilisateur ---
     font = pygame.font.Font(None, 24)

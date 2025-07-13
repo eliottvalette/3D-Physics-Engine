@@ -51,10 +51,6 @@ class Ground:
                 if (0 <= start[0] < WINDOW_WIDTH and 0 <= start[1] < WINDOW_HEIGHT and
                     0 <= end[0] < WINDOW_WIDTH and 0 <= end[1] < WINDOW_HEIGHT):
                     pygame.draw.line(screen, color, start, end, 1)
-    
-    def get_world_points(self):
-        """Retourne la liste des points du monde pour les collisions"""
-        return self._3d_world_points
 
 
 class Staircase:
