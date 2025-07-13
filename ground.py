@@ -52,7 +52,75 @@ class Ground:
                     0 <= end[0] < WINDOW_WIDTH and 0 <= end[1] < WINDOW_HEIGHT):
                     pygame.draw.line(screen, color, start, end, 1)
 
-
+class FloorAndWall:
+    def __init__(self, size=10):
+        self.size = size
+        self._3d_world_points = []
+    
+    def draw(self, screen: pygame.Surface, camera: Camera3D):
+        """Dessine le sol puis le mur en 3D"""
+        for x in range(-self.size, self.size + 1):
+            for z in range(-self.size, self.size + 1):
+                # Créer un point au sol
+                point_3d = np.array([x, 0, z])
+                self._3d_world_points.append(point_3d)
+                projected = camera.project_3d_to_2d(point_3d)
+                
+                if projected:
+                    # Couleur basée sur la profondeur
+                    depth = projected[2]
+                    color_intensity = max(0, min(255, 255 - depth * 10))
+                    color = (color_intensity, color_intensity, color_intensity)
+                    
+                    # Dessiner un petit carré
+                    size = np.clip(int(10 / depth), 1, 10)
+                    rect = pygame.Rect(projected[0] - size//2, projected[1] - size//2, size, size)
+                    # Vérifier que le rectangle est dans les limites de l'écran
+                    if (0 <= rect.left < WINDOW_WIDTH and 0 <= rect.top < WINDOW_HEIGHT and
+                        rect.right > 0 and rect.bottom > 0):
+                        pygame.draw.rect(screen, color, rect) 
+        
+        for z in range(-self.size, self.size + 1):
+            for y in range(0, self.size + 1):
+                point_3d = np.array([self.size, y, z])
+                self._3d_world_points.append(point_3d)
+                projected = camera.project_3d_to_2d(point_3d)
+                
+                if projected:
+                    # Couleur basée sur la profondeur
+                    depth = projected[2]
+                    color_intensity = max(0, min(255, 255 - depth * 10))
+                    color = (color_intensity, color_intensity, color_intensity)
+                    
+                    # Dessiner un petit carré
+                    size = np.clip(int(10 / depth), 1, 10)
+                    rect = pygame.Rect(projected[0] - size//2, projected[1] - size//2, size, size)
+                    # Vérifier que le rectangle est dans les limites de l'écran
+                    if (0 <= rect.left < WINDOW_WIDTH and 0 <= rect.top < WINDOW_HEIGHT and
+                        rect.right > 0 and rect.bottom > 0):
+                        pygame.draw.rect(screen, color, rect) 
+    
+    def draw_axes(self, screen: pygame.Surface, camera: Camera3D):
+        """Dessine les axes 3D pour référence"""
+        origin = np.array([0, 0, 0])
+        axes = [
+            (np.array([5, 0, 0]), RED),    # X
+            (np.array([0, 5, 0]), GREEN),  # Y  
+            (np.array([0, 0, 5]), BLUE)    # Z
+        ]
+        
+        for axis_end, color in axes:
+            start_proj = camera.project_3d_to_2d(origin)
+            end_proj = camera.project_3d_to_2d(axis_end)
+            
+            if start_proj and end_proj:
+                start = start_proj[:2]
+                end = end_proj[:2]
+                # Vérifier que les coordonnées sont valides
+                if (0 <= start[0] < WINDOW_WIDTH and 0 <= start[1] < WINDOW_HEIGHT and
+                    0 <= end[0] < WINDOW_WIDTH and 0 <= end[1] < WINDOW_HEIGHT):
+                    pygame.draw.line(screen, color, start, end, 1)
+        
 class Staircase:
     def __init__(self, size=20, num_steps=10, step_width=1.0, step_height=1.0, step_depth=1.0, start_x=0, start_z=0):
         self.size = size
@@ -64,11 +132,11 @@ class Staircase:
         self.start_z = start_z
         self._3d_world_points = []
         
-        # Calculer et stocker les coordonnées des marches et contremarches
-        self._flat_steps = self._calculate_flat_steps()
-        self._vertical_steps = self._calculate_vertical_steps()
+        # Pre-calculate step coordinates since they don't change
+        self.step_coordinates_flat = self._calculate_step_coordinates_flat()
+        self.step_coordinates_vertical = self._calculate_step_coordinates_vertical()
 
-    def _calculate_flat_steps(self):
+    def _calculate_step_coordinates_flat(self):
         """
         Calcule les coordonnées des marches d'escalier pour les collisions.
         Chaque marche est définie par:
@@ -93,7 +161,7 @@ class Staircase:
         
         return steps
 
-    def _calculate_vertical_steps(self):
+    def _calculate_step_coordinates_vertical(self):
         """
         Calcule les coordonnées de la contremarche verticale entre les marches d'escalier pour les collisions.
         Chaque contremarche est définie par:
@@ -101,6 +169,7 @@ class Staircase:
         - step_points: liste de points 4 points (x, y, z) définissant la contremarche (rectangle vertical)
         La contremarche est sur le plan normal à z (position z fixe).
         """
+
         vertical_steps = {}
         # Pas de contremarche pour la partie droite plate
 
@@ -120,18 +189,6 @@ class Staircase:
             ]
         
         return vertical_steps
-
-    def get_step_coordinates_flat(self):
-        """
-        Retourne les coordonnées des marches d'escalier pour les collisions.
-        """
-        return self._flat_steps
-
-    def get_step_coordinates_vertical(self):
-        """
-        Retourne les coordonnées de la contremarche verticale entre les marches d'escalier pour les collisions.
-        """
-        return self._vertical_steps
 
 
     def draw(self, screen: pygame.Surface, camera: Camera3D):
@@ -224,9 +281,8 @@ class Staircase:
         """
         Dessine les coordonnées des marches d'escalier pour vérification
         """
-        steps = self.get_step_coordinates_flat()
         
-        for i, (y, step_points) in enumerate(steps.items()):
+        for i, (y, step_points) in enumerate(self.step_coordinates_flat.items()):
             # Dessiner les 4 coins de chaque marche
             for j, (x, z) in enumerate(step_points):
                 point_3d = np.array([x, y, z])
@@ -259,9 +315,8 @@ class Staircase:
         """
         Dessine les coordonnées des contremarches verticales pour vérification
         """
-        vertical_steps = self.get_step_coordinates_vertical()
         
-        for i, (y, step_points) in enumerate(vertical_steps.items()):
+        for i, (y, step_points) in enumerate(self.step_coordinates_vertical.items()):
             # Dessiner les 4 coins de chaque contremarche
             for j, (x, y_point, z) in enumerate(step_points):
                 point_3d = np.array([x, y_point, z])

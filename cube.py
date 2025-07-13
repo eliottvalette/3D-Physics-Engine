@@ -5,15 +5,15 @@ from camera import Camera3D
 import math
 
 class Cube3D:
-    def __init__(self, position, x_length = 1, y_length = 1, z_length = 1, rotation = np.array([0.0, 0.0, 0.0])):
+    def __init__(self, position, x_length = 1, y_length = 1, z_length = 1, rotation = np.array([0.0, 0.0, 0.0]), velocity = np.array([0.0, 0.0, 0.0])):
         self.initial_position = position.copy()
-        self.initial_velocity = np.array([0.0, 0.0, 0.0]).copy()
+        self.initial_velocity = velocity.copy()
         self.initial_rotation = np.array([0.0, 0.0, 0.0]).copy()
         self.initial_angular_velocity = np.array([0.0, 0.0, 0.0]).copy()
         self.initial_rotation = rotation.copy()
 
         self.position = position # position en x, y, z
-        self.velocity = np.array([0.0, 0.0, 0.0])
+        self.velocity = velocity
         self.rotation = rotation # rotation en radians
         self.angular_velocity = np.array([0.0, 0.0, 0.0])
         self.x_length = float(x_length)
@@ -125,8 +125,116 @@ class Cube3D:
 
         # Optionnel : limiter la rotation pour éviter les dérives numériques
         self.rotation = np.mod(self.rotation, 2 * np.pi)
+    
+    def update_ground_and_wall_complex(self, floor_level: float, wall_distance: float):
+        """
+        Collision plus complexe entre le cube (les sommets pour simplifier les calculs)
+        et le sol (plat à une hauteur fixe) et un mur (plat à une distance fixe). 
+        Si un sommet passe sous le sol ou traverse le mur, on applique une force verticale ou latérale
+        pour l'empêcher de passer sous le sol ou de traverser le mur, ce qui modifie la vitesse linéaire et angulaire du cube.
+        Pas de rebond, c'est un bloc de ciment sur du ciment.
+        """
+        # Mettre à jour les sommets du cube
+        self.rotated_vertices = self.get_vertices()
 
-    def update_on_stais(self, stairs_coordinates: dict[int, list[tuple[float, float]]]):
+        # Constantes physiques
+        mass = 1.0
+        # Tenseur d'inertie d'un pavé droit homogène (diagonal)
+        I = np.array([
+            (1/12) * mass * (self.y_length**2 + self.z_length**2),
+            (1/12) * mass * (self.x_length**2 + self.z_length**2),
+            (1/12) * mass * (self.x_length**2 + self.y_length**2)
+        ])
+
+        # Appliquer la gravité au centre de masse
+        self.velocity += GRAVITY * DT
+
+        # Mise à jour de la position et de la rotation
+        self.position += self.velocity * DT
+        self.rotation += self.angular_velocity * DT
+        
+        # Recalculer les sommets après mise à jour
+        self.rotated_vertices = self.get_vertices()
+        
+        # Trier les sommets du plus proche du sol au plus loin
+        sorted_vertices = sorted(self.rotated_vertices, key=lambda v: v[1])
+        # is_close_to_ground si le plus proche <= 0.03
+        is_close_to_ground = sorted_vertices[0][1] <= 0.03
+        # is_on_ground si au moins 3 sommets sont <= 0.03
+        is_on_ground = sorted_vertices[2][1] <= 0.03
+
+        # Si le cube est au sol, appliquer une stabilisation plus agressive
+        if is_close_to_ground:
+            # Réduire drastiquement les vitesses horizontales et angulaires
+            self.velocity[0] *= 0.9
+            self.velocity[2] *= 0.9
+            self.angular_velocity *= 0.9
+        
+        if is_on_ground:
+            # Réduire drastiquement les vitesses horizontales et angulaires
+            self.velocity[0] *= 0.2
+            self.velocity[2] *= 0.2
+            self.angular_velocity *= 0.1  # Réduction très forte quand sur le sol
+
+            # Réduire drastiquement la vitesse verticale
+            self.velocity[1] *= 0.2
+
+        # Pour chaque sommet, vérifier la collision avec le sol
+        for vertex in self.rotated_vertices:
+            if vertex[1] < floor_level:
+                # Position du sommet par rapport au centre de masse (c'est ce qui permet de casser la symétrie de la force d'impulsion)
+                relative_position = vertex - self.position
+                # Vitesse du sommet (translation + rotation)
+                vertex_velocity = self.velocity + np.cross(self.angular_velocity, relative_position)
+                # Si le sommet descend, on annule la composante verticale
+                if vertex_velocity[1] < 0:
+                    # Impulsion nécessaire pour annuler la vitesse verticale
+                    normal = np.array([0, 1, 0])  # normale du sol
+                    relative_velocity = np.dot(vertex_velocity, normal)
+                    # Calcul de l'impulsion scalaire
+                    r_cross_n = np.cross(relative_position, normal)
+                    denom = (1/mass) + np.dot(normal, np.cross(np.divide(r_cross_n, I, out=np.zeros_like(r_cross_n), where=I!=0), relative_position))
+                    if denom == 0:
+                        continue
+                    scalar_impulse = -relative_velocity / denom
+                    # Appliquer l'impulsion au centre de masse
+                    self.velocity += (scalar_impulse * normal) / mass
+                    # Appliquer l'impulsion angulaire
+                    self.angular_velocity += np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0)
+                
+                # Replacer le sommet sur le sol en ajustant la position du centre de masse
+                self.position[1] = max(self.position[1], floor_level - relative_position[1])
+
+        # Pour chaque sommet, vérifier la collision avec le mur (x = wall_distance)
+        for vertex in self.rotated_vertices:
+            if vertex[0] > wall_distance:
+                # Position du sommet par rapport au centre de masse
+                relative_position = vertex - self.position
+                # Vitesse du sommet (translation + rotation)
+                vertex_velocity = self.velocity + np.cross(self.angular_velocity, relative_position)
+                # Si le sommet avance vers le mur, on annule la composante horizontale
+                if vertex_velocity[0] > 0:
+                    # Impulsion nécessaire pour annuler la vitesse horizontale
+                    normal = np.array([-1, 0, 0])  # normale du mur (vers l'intérieur)
+                    relative_velocity = np.dot(vertex_velocity, normal)
+                    # Calcul de l'impulsion scalaire
+                    r_cross_n = np.cross(relative_position, normal)
+                    denom = (1/mass) + np.dot(normal, np.cross(np.divide(r_cross_n, I, out=np.zeros_like(r_cross_n), where=I!=0), relative_position))
+                    if denom == 0:
+                        continue
+                    scalar_impulse = -relative_velocity / denom
+                    # Appliquer l'impulsion au centre de masse
+                    self.velocity += (scalar_impulse * normal) / mass
+                    # Appliquer l'impulsion angulaire
+                    self.angular_velocity += np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0)
+                
+                # Replacer le sommet sur le mur en ajustant la position du centre de masse
+                self.position[0] = min(self.position[0], wall_distance - relative_position[0])
+
+        # Optionnel : limiter la rotation pour éviter les dérives numériques
+        self.rotation = np.mod(self.rotation, 2 * np.pi)
+
+    def update_on_stairs(self, stairs_coordinates_flat: dict[int, list[tuple[float, float]]], stairs_coordinates_vertical: dict[int, list[tuple[float, float]]]):
         """
         Collision avancée entre le cube (les sommets pour simplifier les calculs)
         et les marches d'escalier. Chaque marche est traitée comme un petit sol avec sa hauteur.
@@ -162,7 +270,7 @@ class Cube3D:
         # Calculer la hauteur du sol sous chaque sommet et trier par distance au sol
         vertex_ground_distances = []
         for vertex in self.rotated_vertices:
-            ground_height = self.height_of_ground_below(vertex, stairs_coordinates)
+            ground_height = self.height_of_ground_below(vertex, stairs_coordinates_flat)
             distance_to_ground = vertex[1] - ground_height
             vertex_ground_distances.append((vertex, distance_to_ground))
         
@@ -188,7 +296,7 @@ class Cube3D:
         # Pour chaque sommet, vérifier la collision avec les marches
         collision_detected = False  # Éviter les impulsions multiples
         for vertex in self.rotated_vertices:
-            ground_height = self.height_of_ground_below(vertex, stairs_coordinates)
+            ground_height = self.height_of_ground_below(vertex, stairs_coordinates_flat)
 
             # Collision avec la marche
             if vertex[1] < ground_height and not collision_detected:
