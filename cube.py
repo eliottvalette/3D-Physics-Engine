@@ -19,7 +19,7 @@ class Cube3D:
         self.y_length = float(y_length)
         self.z_length = float(z_length)
         
-    def update(self):
+    def update_ground_only(self):
         # Physique 3D complète
         self.velocity += GRAVITY * DT
         self.position += self.velocity * DT
@@ -38,6 +38,107 @@ class Cube3D:
             if abs(self.position[i]) + self.x_length / 2 > wall_size:
                 self.position[i] = np.sign(self.position[i]) * (wall_size - self.x_length / 2)
                 self.velocity[i] *= -0.8
+    
+    def update_on_world_points(self, world_points: list[np.array]):
+        """
+        Collision avancée entre le cube (les sommets pour simplifier les calculs)
+        et les points du monde
+        """
+        
+        # Calculer les 8 sommets du cube dans l'espace monde
+        vertices = []
+        for x in [-self.x_length/2, self.x_length/2]:
+            for y in [-self.y_length/2, self.y_length/2]:
+                for z in [-self.z_length/2, self.z_length/2]:
+                    vertex = np.array([x, y, z])
+                    vertices.append(vertex)
+        
+        # Appliquer les rotations aux sommets (A partir de la rotation initiale du cube avant gestion des collisions)
+        rotated_vertices = []
+        for vertex in vertices:
+            # Rotation autour de l'axe X (pitch)
+            cos_x = math.cos(self.rotation[0])
+            sin_x = math.sin(self.rotation[0])
+            y1 = vertex[1] * cos_x - vertex[2] * sin_x
+            z1 = vertex[1] * sin_x + vertex[2] * cos_x
+            rotated_vertex = np.array([vertex[0], y1, z1])
+            
+            # Rotation autour de l'axe Y (yaw)
+            cos_y = math.cos(self.rotation[1])
+            sin_y = math.sin(self.rotation[1])
+            x2 = rotated_vertex[0] * cos_y + rotated_vertex[2] * sin_y
+            z2 = -rotated_vertex[0] * sin_y + rotated_vertex[2] * cos_y
+            rotated_vertex = np.array([x2, rotated_vertex[1], z2])
+            
+            # Rotation autour de l'axe Z (roll)
+            cos_z = math.cos(self.rotation[2])
+            sin_z = math.sin(self.rotation[2])
+            x3 = rotated_vertex[0] * cos_z - rotated_vertex[1] * sin_z
+            y3 = rotated_vertex[0] * sin_z + rotated_vertex[1] * cos_z
+            rotated_vertex = np.array([x3, y3, rotated_vertex[2]])
+            
+            # Ajouter la position du cube
+            world_vertex = self.position + rotated_vertex
+            rotated_vertices.append(world_vertex)
+        
+        # Vérifier les collisions pour chaque sommet
+        collision_forces = []
+        collision_torques = []
+        
+        for i, vertex in enumerate(rotated_vertices):
+            # Vérifier collision avec le sol (y = 0)
+            if vertex[1] < 0:
+                # Force de répulsion vers le haut
+                force = np.array([0.0, 20.0, 0.0])  # Force vers le haut
+                collision_forces.append(force)
+                
+                # Calculer le couple créé par cette force
+                r = vertex - self.position  # Vecteur du centre au sommet
+                torque = np.cross(r, force)
+                collision_torques.append(torque)
+            
+            # Vérifier collision avec chaque point du monde (pour les obstacles)
+            for world_point in world_points:
+                # Ignorer les points au sol (y = 0) car déjà géré ci-dessus
+                if world_point[1] == 0:
+                    continue
+                    
+                # Distance entre le sommet et le point du monde
+                distance = np.linalg.norm(vertex - world_point)
+                
+                # Si collision détectée (distance très petite)
+                if distance < 0.2:  # Seuil de collision
+                    # Calculer la force de répulsion
+                    direction = (vertex - world_point) / (distance + 1e-6)  # Éviter division par zéro
+                    force_magnitude = 15.0  # Force de répulsion
+                    force = direction * force_magnitude
+                    
+                    collision_forces.append(force)
+                    
+                    # Calculer le couple (torque) créé par cette force
+                    # Le couple = r × F où r est le vecteur du centre de masse au point d'application
+                    r = vertex - self.position  # Vecteur du centre au sommet
+                    torque = np.cross(r, force)
+                    collision_torques.append(torque)
+        
+        # Appliquer les forces et couples résultants
+        if collision_forces:
+            # Force totale
+            total_force = np.sum(collision_forces, axis=0)
+            self.velocity += total_force * DT
+            
+            # Couple total
+            total_torque = np.sum(collision_torques, axis=0)
+            self.angular_velocity += total_torque * DT * 0.1  # Facteur d'amortissement pour la rotation
+        
+        # Appliquer la physique de base
+        self.velocity += GRAVITY * DT
+        self.position += self.velocity * DT
+        self.rotation += self.angular_velocity * DT
+        
+        # Amortissement des vitesses
+        self.velocity *= 0.98
+        self.angular_velocity *= 0.92
     
     def draw(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le cube 3D avec projection et profondeur"""

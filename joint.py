@@ -25,26 +25,23 @@ class Joint:
 
     def update_positions(self):
         """Met à jour les positions des objets pour respecter l'angle du joint"""
-        # Le joint est au point de connexion entre les deux objets
-        # L'objet 1 (forearm) reste fixe, l'objet 2 (biceps) tourne autour du joint
-        
-        # Position du joint (point de connexion)
+        # Position du joint (point de connexion toujours sur l'objet 1)
         joint_position = self.object_1.get_face_center(self.face_1)
         
-        # Calculer la direction du biceps basée sur l'angle
-        biceps_direction = np.array([
+        # Calculer la direction de l'objet 2 suivant l'angle du joint
+        object_2_direction = np.array([
             math.cos(self.angle),
             math.sin(self.angle),
             0.0
         ])
         
-        # Calculer la nouvelle position du biceps
-        # Le biceps doit être positionné pour que sa face 3 touche le joint
-        biceps_offset = biceps_direction * (self.object_2.x_length / 2)
-        self.object_2.position = joint_position + biceps_offset
+        # Calculer la nouvelle position de l'objet 2
+        # L'objet 2 doit être positionné pour que sa face de jointure touche aussi le joint
+        object_2_offset = object_2_direction * (self.object_2.x_length / 2)
+        self.object_2.position = joint_position + object_2_offset
         
-        # Faire tourner le biceps selon l'angle du joint
-        # La rotation se fait autour de l'axe Z (perpendiculaire au plan XY)
+        # Faire tourner l'objet 2 selon l'angle du joint
+        # La rotation se fait autour de l'axe Z (normal au plan XY)
         self.object_2.rotation[2] = self.angle
         
         # Mettre à jour les positions des points de joint
