@@ -93,9 +93,9 @@ while running:
         joint.set_angle(current_angle + 0.05)  # Déplier de 0.05 radians
     
     # --- Mise à jour physique ---
-    forearm.update_ground_only()
-    biceps.update_ground_only()
     joint.update()
+    forearm.update_ground_only_complex()
+    biceps.update_ground_only_complex()
     
     # --- Rendu ---
     screen.fill(BLACK)

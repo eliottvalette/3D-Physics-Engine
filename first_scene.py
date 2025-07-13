@@ -70,7 +70,7 @@ while running:
         cube.reset()
     
     # --- Mise à jour physique ---
-    cube.update_ground_only()
+    cube.update_ground_only_simple()
     
     # --- Rendu ---
     screen.fill(BLACK)

@@ -17,10 +17,11 @@ clock = pygame.time.Clock()
 # --- Objets du monde ---
 camera = Camera3D()
 cube = Cube3D(
-        position=np.array([1.0, 8.0, 1.0]),
-        x_length=3.0,
-        y_length=1.0,
-        z_length=1.0
+        position=np.array([1.2, 8.2, 1.2]),
+        x_length=8.0,
+        y_length=6.0,
+        z_length=4.0,
+        rotation=np.array([1.0, 1.0, 1.0])
     )
 staircase = Staircase(size=20, num_steps=10, step_width=1.0, step_height=1.0, step_depth=1.0, start_x=0, start_z=0)
 
@@ -70,7 +71,7 @@ while running:
         cube.reset()
     
     # --- Mise à jour physique ---
-    cube.update_ground_only()
+    cube.update_on_stais(staircase.get_step_coordinates_flat())
     
     # --- Rendu ---
     screen.fill(BLACK)
@@ -78,6 +79,8 @@ while running:
     # Dessiner le monde 3D
     staircase.draw(screen, camera)
     staircase.draw_axes(screen, camera)
+    staircase.draw_step_coordinates_vertical(screen, camera)  # Visualiser les coordonnées des contremarches
+    staircase.draw_step_coordinates_flat(screen, camera)  # Visualiser les coordonnées des marches
     cube.draw(screen, camera)
     
     # --- Interface utilisateur ---

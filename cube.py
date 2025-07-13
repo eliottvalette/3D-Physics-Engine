@@ -92,7 +92,7 @@ class Cube3D:
             # Réduire drastiquement les vitesses horizontales et angulaires
             self.velocity[0] *= 0.2
             self.velocity[2] *= 0.2
-            self.angular_velocity *= 0.2
+            self.angular_velocity *= 0.1  # Réduction très forte quand sur le sol
 
             # Réduire drastiquement la vitesse verticale
             self.velocity[1] *= 0.2
@@ -125,17 +125,143 @@ class Cube3D:
 
         # Optionnel : limiter la rotation pour éviter les dérives numériques
         self.rotation = np.mod(self.rotation, 2 * np.pi)
-    
-    def update_on_world_points(self, world_points: list[np.array]):
+
+    def update_on_stais(self, stairs_coordinates: dict[int, list[tuple[float, float]]]):
         """
         Collision avancée entre le cube (les sommets pour simplifier les calculs)
-        et les points du monde. Pour ne pas avoir a calculer les collisions avec tous les points du monde,
-        on ne prend que les points du monde qui sont dans la verticalité de la large bounding box du cube
+        et les marches d'escalier. Chaque marche est traitée comme un petit sol avec sa hauteur.
+
+        stairs_coordinates : dict[int, list[tuple[float, float]]]
+        Chaque dict contient:
+        - y: hauteur de la marche
+        - step_points: liste de 4 points (x,z) définissant la marche (rectangle parallèle au sol)
         """
+
+        # Mettre à jour les sommets du cube
+        self.rotated_vertices = self.get_vertices()
+
+        # Constantes physiques
+        mass = 1.0
+        # Tenseur d'inertie d'un pavé droit homogène (diagonal)
+        I = np.array([
+            (1/12) * mass * (self.y_length**2 + self.z_length**2),
+            (1/12) * mass * (self.x_length**2 + self.z_length**2),
+            (1/12) * mass * (self.x_length**2 + self.y_length**2)
+        ])
+
+        # Appliquer la gravité au centre de masse
+        self.velocity += GRAVITY * DT
+
+        # Mise à jour de la position et de la rotation
+        self.position += self.velocity * DT
+        self.rotation += self.angular_velocity * DT
         
-        # TODO :
-        pass
-    
+        # Recalculer les sommets après mise à jour
+        self.rotated_vertices = self.get_vertices()
+        
+        # Calculer la hauteur du sol sous chaque sommet et trier par distance au sol
+        vertex_ground_distances = []
+        for vertex in self.rotated_vertices:
+            ground_height = self.height_of_ground_below(vertex, stairs_coordinates)
+            distance_to_ground = vertex[1] - ground_height
+            vertex_ground_distances.append((vertex, distance_to_ground))
+        
+        # Trier les sommets du plus proche du sol au plus loin
+        sorted_vertices_with_distances = sorted(vertex_ground_distances, key=lambda x: x[1])
+        
+        # is_close_to_ground si le plus proche est proche du sol
+        is_close_to_ground = sorted_vertices_with_distances[0][1] <= 0.03
+        # is_on_ground si au moins 3 sommets sont proches du sol
+        is_on_ground = sorted_vertices_with_distances[2][1] <= 0.03
+
+        # Si le cube est au sol, appliquer une stabilisation plus agressive
+        if is_close_to_ground:
+            # Réduire drastiquement les vitesses horizontales et angulaires
+            self.velocity[0] *= 0.95
+            self.velocity[2] *= 0.95
+            self.angular_velocity *= 0.98  # Réduction plus forte de la rotation
+
+        # Limiter la vitesse angulaire pour éviter les rotations excessives
+        max_angular_velocity = 5.0  # Limite en rad/s
+        self.angular_velocity = np.clip(self.angular_velocity, -max_angular_velocity, max_angular_velocity)
+
+        # Pour chaque sommet, vérifier la collision avec les marches
+        collision_detected = False  # Éviter les impulsions multiples
+        for vertex in self.rotated_vertices:
+            ground_height = self.height_of_ground_below(vertex, stairs_coordinates)
+
+            # Collision avec la marche
+            if vertex[1] < ground_height and not collision_detected:
+                collision_detected = True  # Une seule collision par frame
+                
+                # Position du sommet par rapport au centre de masse
+                relative_position = vertex - self.position
+                # Vitesse du sommet (translation + rotation)
+                vertex_velocity = self.velocity + np.cross(self.angular_velocity, relative_position)
+                # Si le sommet descend, on annule la composante verticale
+                if vertex_velocity[1] < 0:
+                    # Impulsion nécessaire pour annuler la vitesse verticale
+                    normal = np.array([0, 1, 0])  # normale du sol
+                    relative_velocity = np.dot(vertex_velocity, normal)
+                    # Calcul de l'impulsion scalaire
+                    r_cross_n = np.cross(relative_position, normal)
+                    denom = (1/mass) + np.dot(normal, np.cross(np.divide(r_cross_n, I, out=np.zeros_like(r_cross_n), where=I!=0), relative_position))
+                    if denom == 0:
+                        continue
+                    scalar_impulse = -relative_velocity / denom
+                    # Appliquer l'impulsion au centre de masse
+                    self.velocity += (scalar_impulse * normal) / mass
+                    # Appliquer l'impulsion angulaire (réduite pour éviter l'instabilité)
+                    angular_impulse = np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0)
+                    self.angular_velocity += angular_impulse * 0.5  # Réduire l'effet de l'impulsion angulaire
+                
+                # Replacer le sommet sur la marche en ajustant la position du centre de masse
+                # Calculer la nouvelle position Y du centre de masse pour que le sommet soit sur la marche
+                new_y = ground_height - relative_position[1]
+                self.position[1] = max(self.position[1], new_y)
+
+        # Optionnel : limiter la rotation pour éviter les dérives numériques
+        self.rotation = np.mod(self.rotation, 2 * np.pi)
+
+    def height_of_ground_below(self, vertex: np.array, stairs_coordinates: dict[int, list[tuple[float, float]]]) -> float:
+        """
+        Retourne la hauteur du sol en dessous du sommet
+
+        On regarde sa position (x,y), et à partir de stairs_coordinates, on cherche la hauteur du sol en dessous.
+        Pour cela on regarde dans quel rectangle se trouve le sommet, et on retourne la hauteur de ce rectangle.
+        """
+
+        x, _, z = vertex
+
+        for step_y, step_points in stairs_coordinates.items():
+            if self._point_in_rectangle_x_z(x, z, step_points):
+                return step_y
+        
+        # Si aucun rectangle trouvé, retourner 0 (sol par défaut)
+        return -float('inf')
+                
+    def _point_in_rectangle_x_z(self, x: float, z: float, rectangle_points: list[tuple[float, float]]) -> bool:
+        """
+        Vérifie si un point (x, z) est dans un rectangle défini par ses 4 points
+        Cette technique avec plusiers ifs permet de réduire le compute si dès le 
+        premier if on peut déjà exclure le point.
+        
+        Les points sont définis dans l'ordre: [(x_max, z_min), (x_max, z_max), (x_min, z_max), (x_min, z_min)]
+        """
+        # Extraire les bornes x et z du rectangle
+        x_coords = [point[0] for point in rectangle_points]
+        z_coords = [point[1] for point in rectangle_points]
+        
+        x_min, x_max = min(x_coords), max(x_coords)
+        z_min, z_max = min(z_coords), max(z_coords)
+        
+        # Vérifier si le point est dans le rectangle
+        if x < x_min or x > x_max:
+            return False
+        if z < z_min or z > z_max:
+            return False
+        return True
+
     def reset(self):
         self.position = self.initial_position.copy()
         self.velocity = self.initial_velocity.copy()
