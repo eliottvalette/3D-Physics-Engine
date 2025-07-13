@@ -327,7 +327,7 @@ class Cube3D:
         # Pour chaque sommet, vérifier la collision avec les contremarches (murs verticaux)
         for vertex in self.rotated_vertices:
             # Trouver la distance au mur vertical le plus proche
-            wall_distance = self.distance_to_wall(vertex, stairs_coordinates_vertical)
+            wall_distance = self.coord_of_wall_next_to_vertex(vertex, stairs_coordinates_vertical)
             
             if wall_distance != float('inf') and wall_distance < 0:  # Le sommet est derrière le mur
                 # Position du sommet par rapport au centre de masse
@@ -356,7 +356,7 @@ class Cube3D:
 
         # Optionnel : limiter la rotation pour éviter les dérives numériques
         self.rotation = np.mod(self.rotation, 2 * np.pi)
-        
+    
     def _point_in_rectangle_x_z(self, x: float, z: float, rectangle_points: list[tuple[float, float]]) -> bool:
         """
         Vérifie si un point (x, z) est dans un rectangle défini par ses 4 points
@@ -411,24 +411,19 @@ class Cube3D:
         # Si aucun rectangle trouvé, retourner 0 (sol par défaut)
         return -float('inf')
 
-    def distance_to_wall(self, vertex: np.array, vertical_stairs_coordinates: dict[int, list[tuple[float, float, float]]]) -> float:
+    def coord_of_wall_next_to_vertex(self, vertex: np.array, vertical_stairs_coordinates: dict[int, list[tuple[float, float, float]]]) -> float:
         """
-        Retourne la distance entre le sommet et le mur
+        Retourne la coordonnée z du mur
 
         On regarde sa position (x,y,z), et à partir de vertical_stairs_coordinates, on cherche la distance entre le sommet et le mur.
-        Pour cela on regarde dans quel rectangle se trouve le sommet, et on retourne la distance entre le sommet et le mur.
+        Pour cela on regarde dans quel rectangle se trouve le sommet, et on retourne la coordonnée z du mur.
         """
         x, y, z = vertex
 
         for step_y, step_points in vertical_stairs_coordinates.items():
             if self._point_in_rectangle_x_y_z(x, y, z, step_points):
-                # Le mur est vertical et a une position z fixe
-                # On prend le z du premier point (tous les points ont le même z pour une contremarche)
                 wall_z = step_points[0][2]
-                # La distance est la différence entre la position z du sommet et la position z du mur
-                # Si le sommet est devant le mur (z < wall_z), la distance est négative
-                # Si le sommet est derrière le mur (z > wall_z), la distance est positive
-                return z - wall_z
+                return wall_z
         
         # Si aucun rectangle trouvé, retourner une grande distance positive (pas de mur)
         return float('inf')
