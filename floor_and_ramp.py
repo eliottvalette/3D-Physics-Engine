@@ -71,6 +71,7 @@ while running:
         camera.rotation[0] -= rotation_speed
 
     if keys[K_SPACE]:
+        print("-----------reset-----------")
         cube.reset()
     
     # --- Mise à jour physique ---

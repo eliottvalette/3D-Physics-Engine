@@ -235,102 +235,126 @@ class Cube3D:
         # Optionnel : limiter la rotation pour éviter les dérives numériques
         self.rotation = np.mod(self.rotation, 2 * np.pi)
     
-    def update_floor_and_ramp(self,
-                              x_ramp_min: float, x_ramp_max: float,
-                              z_ramp_min: float, z_ramp_max: float,
-                              ramp_angle: float):
+    def update_floor_and_ramp(
+        self,
+        x_ramp_min: float, x_ramp_max: float,
+        z_ramp_min: float, z_ramp_max: float,
+        ramp_angle: float,
+        friction_coeff: float = 0.4):        # ← nouveau paramètre μ
         """
-        Gère les collisions avec :
-        • un sol plat (y=0) ;
-        • une rampe avec un angle `ramp_angle` située dans la
-          zone [x_ramp_min, x_ramp_max] x [z_ramp_min, z_ramp_max].
+        Gestion des collisions + friction avec :
+        • le sol plat (y = 0)
+        • une rampe inclinée (angle `ramp_angle`) dans
+          [x_ramp_min, x_ramp_max] × [z_ramp_min, z_ramp_max]
 
-        La rampe monte selon +X, son équation est :
-            y = (x - x_ramp_min) * tan(ramp_angle)
-        lorsqu'on est à l'intérieur du rectangle porte-rampe.
-
-        Hypothèses :
-        - Pavé homogène (masse = 1).
-        - Collision traitée sommet par sommet (comme dans les autres
-          méthodes “complex” → conserve le même style de code).
+        `friction_coeff` (μ) = coefficient de frottement cinétique
+        appliqué quand le cube glisse sur le plan de contact.
         """
-        self.rotated_vertices = self.get_vertices()
+        # ---------- Pré‑calculs ----------
+        self.rotated_vertices = self.get_vertices()   # avant intégration
 
         mass = 1.0
         I = np.array([
-            (1 / 12) * mass * (self.y_length**2 + self.z_length**2),
-            (1 / 12) * mass * (self.x_length**2 + self.z_length**2),
-            (1 / 12) * mass * (self.x_length**2 + self.y_length**2)
+            (1/12)*mass*(self.y_length**2 + self.z_length**2),
+            (1/12)*mass*(self.x_length**2 + self.z_length**2),
+            (1/12)*mass*(self.x_length**2 + self.y_length**2)
         ])
 
+        # ---------- Intégration ----------
         self.velocity += GRAVITY * DT
         self.position += self.velocity * DT
         self.rotation += self.angular_velocity * DT
-        self.rotated_vertices = self.get_vertices() 
+        self.rotated_vertices = self.get_vertices()   # après intégration
 
-        # ---------- 2. Constantes utiles ----------
-        theta = math.radians(ramp_angle)
-        tan_theta = math.tan(theta)
+        theta      = math.radians(ramp_angle)
+        tan_theta  = math.tan(theta)
+        n_ramp_raw = np.array([-tan_theta, 1.0, 0.0])
+        n_ramp     = n_ramp_raw / np.linalg.norm(n_ramp_raw)
+        n_floor    = np.array([0.0, 1.0, 0.0])
 
-        # Normale du plan rampe (non normalisée puis normalisée)
-        n_ramp = np.array([-tan_theta, 1.0, 0.0])
-        n_ramp /= np.linalg.norm(n_ramp)
+        # ---------- Réduction des vitesses ----------
+        sorted_vertices = sorted(self.rotated_vertices, key=lambda v: v[1])
+        is_close_to_ground = sorted_vertices[0][1] <= 0.03
+        is_on_ground = sorted_vertices[2][1] <= 0.03
 
-        n_floor = np.array([0.0, 1.0, 0.0])
+        if is_close_to_ground:
+            self.velocity[0] *= 0.995
+            self.velocity[2] *= 0.995
+            self.angular_velocity *= 0.995
+        
+        if is_on_ground:
+            self.velocity[0] *= 0.9
+            self.velocity[2] *= 0.9
+            self.angular_velocity *= 0.5
+            self.velocity[1] *= 0.2
 
-        # Pour replacer le cube une seule fois (évite l'accumulation)
         required_vertical_shift = 0.0
 
-        # ---------- 3. Traitement sommet par sommet ----------
+        # ---------- Boucle sommets ----------
         for vertex in self.rotated_vertices:
             x, y, z = vertex
 
-            # Choix du plan (sol ou rampe)
+            # Choix du plan de contact (rampe ou sol)
             if (x_ramp_min <= x <= x_ramp_max and
                 z_ramp_min <= z <= z_ramp_max):
-                plane_y = (x - x_ramp_min) * tan_theta
+                plane_y      = (x - x_ramp_min) * tan_theta
                 plane_normal = n_ramp
             else:
-                plane_y = 0.0
+                plane_y      = 0.0
                 plane_normal = n_floor
 
-            # Collision ?
             penetration = plane_y - y
-            if penetration > 0.0:  # le sommet est sous le plan
-                # --- Impulsion (même technique que sol/mur complexes) ---
-                relative_pos = vertex - self.position
-                vertex_vel  = self.velocity + np.cross(self.angular_velocity,
-                                                       relative_pos)
+            if penetration <= 0:
+                continue                    # pas de contact
 
-                v_rel_normal = np.dot(vertex_vel, plane_normal)
-                if v_rel_normal < 0:  # ne corrige que si on entre dans le plan
-                    r_cross_n = np.cross(relative_pos, plane_normal)
-                    denom = (1 / mass) + np.dot(
-                        plane_normal,
-                        np.cross(np.divide(r_cross_n, I,
-                                           out=np.zeros_like(r_cross_n),
-                                           where=I != 0),
-                                 relative_pos)
-                    )
+            rel_pos      = vertex - self.position
+            vertex_vel   = self.velocity + np.cross(self.angular_velocity,
+                                                    rel_pos)
+            v_n          = np.dot(vertex_vel, plane_normal)
 
-                    if denom != 0.0:
-                        j = -v_rel_normal / denom  # scalaire d'impulsion
-                        self.velocity += (j * plane_normal) / mass
-                        self.angular_velocity += np.divide(
-                            np.cross(relative_pos, j * plane_normal), I,
-                            out=np.zeros(3), where=I != 0)
+            # -------- Impulsion normale (évite pénétration) --------
+            if v_n < 0:                     # le sommet entre dans le plan
+                r_cross_n = np.cross(rel_pos, plane_normal)
+                denom = (1/mass) + np.dot(
+                    plane_normal,
+                    np.cross(np.divide(r_cross_n, I,
+                                       out=np.zeros_like(r_cross_n),
+                                       where=I != 0),
+                             rel_pos)
+                )
+                if denom == 0:
+                    continue
+                j_n = -v_n / denom          # scalaire d'impulsion normale
 
-                # --- Mémoriser le décalage vertical minimal requis ---
-                # (on n'ajuste qu'en Y pour rester simple et stable)
-                required_vertical_shift = max(required_vertical_shift,
-                                              penetration)
+                # Mise à jour vitesses linéaire & angulaire
+                self.velocity        += (j_n * plane_normal) / mass
+                self.angular_velocity += np.divide(
+                    np.cross(rel_pos, j_n * plane_normal), I,
+                    out=np.zeros(3), where=I != 0)
 
-        # ---------- 4. Ré‐ajustement global de la position ----------
-        if required_vertical_shift > 0.0:
+                # -------- Impulsion de friction --------
+                v_t      = vertex_vel - v_n * plane_normal          # composante tangentielle
+                speed_t  = np.linalg.norm(v_t)
+                if speed_t > 1e-6:                                  # évite division par zéro
+                    dir_t = v_t / speed_t
+                    max_j_t = friction_coeff * j_n                  # loi de Coulomb
+                    j_t = -min(max_j_t, speed_t * mass)             # impulsion friction
+                    self.velocity        += (j_t * dir_t) / mass
+                    self.angular_velocity += np.divide(
+                        np.cross(rel_pos, j_t * dir_t), I,
+                        out=np.zeros(3), where=I != 0)
+
+            # Décalage vertical minimal nécessaire (stabilité)
+            required_vertical_shift = max(required_vertical_shift,
+                                          penetration)
+
+        # ---------- Ré‑ajustement position ----------
+        if required_vertical_shift > 0:
             self.position[1] += required_vertical_shift
 
-        # ---------- 5. Garder la rotation bornée ----------
-        self.rotation = np.mod(self.rotation, 2 * math.pi)
+        # ---------- Normalisation rotation ----------
+        self.rotation = np.mod(self.rotation, 2*math.pi)
+
 
     def update_on_stairs(self, stairs_coordinates_flat: dict[int, list[tuple[float, float]]], stairs_coordinates_vertical: dict[int, list[tuple[float, float, float]]], points_per_edge: int = 3):
         """
@@ -373,10 +397,9 @@ class Cube3D:
     
     def reset(self):
         self.position = self.initial_position.copy()
-        self.velocity = self.initial_velocity.copy()
-        self.rotation = self.initial_rotation.copy()
-        self.angular_velocity = self.initial_angular_velocity.copy()
-        self.rotation = self.initial_rotation.copy()
+        self.velocity = self.initial_velocity.copy() * np.random.rand(3)
+        self.rotation = self.initial_rotation.copy() * np.random.rand(3)
+        self.angular_velocity = self.initial_angular_velocity.copy() * np.random.rand(3)
     
     def get_face_center(self, face_index: int) -> np.array:
         """
