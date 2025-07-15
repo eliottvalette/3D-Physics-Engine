@@ -235,13 +235,102 @@ class Cube3D:
         # Optionnel : limiter la rotation pour éviter les dérives numériques
         self.rotation = np.mod(self.rotation, 2 * np.pi)
     
-    def update_floor_and_ramp(self, x_ramp_min: float, x_ramp_max: float, z_ramp_min: float, z_ramp_max: float, ramp_angle: float):
+    def update_floor_and_ramp(self,
+                              x_ramp_min: float, x_ramp_max: float,
+                              z_ramp_min: float, z_ramp_max: float,
+                              ramp_angle: float):
         """
-        Collision entre le cube (les sommets pour simplifier les calculs)
-        et le sol (plat à une hauteur fixe) et une rampe (rampe à un angle fixe).
-        Ici on va vérifier que le cube glisse bien sur la rampe (si elle est assez raide).
+        Gère les collisions avec :
+        • un sol plat (y=0) ;
+        • une rampe avec un angle `ramp_angle` située dans la
+          zone [x_ramp_min, x_ramp_max] x [z_ramp_min, z_ramp_max].
+
+        La rampe monte selon +X, son équation est :
+            y = (x - x_ramp_min) * tan(ramp_angle)
+        lorsqu'on est à l'intérieur du rectangle porte-rampe.
+
+        Hypothèses :
+        - Pavé homogène (masse = 1).
+        - Collision traitée sommet par sommet (comme dans les autres
+          méthodes “complex” → conserve le même style de code).
         """
-        pass
+        self.rotated_vertices = self.get_vertices()
+
+        mass = 1.0
+        I = np.array([
+            (1 / 12) * mass * (self.y_length**2 + self.z_length**2),
+            (1 / 12) * mass * (self.x_length**2 + self.z_length**2),
+            (1 / 12) * mass * (self.x_length**2 + self.y_length**2)
+        ])
+
+        self.velocity += GRAVITY * DT
+        self.position += self.velocity * DT
+        self.rotation += self.angular_velocity * DT
+        self.rotated_vertices = self.get_vertices() 
+
+        # ---------- 2. Constantes utiles ----------
+        theta = math.radians(ramp_angle)
+        tan_theta = math.tan(theta)
+
+        # Normale du plan rampe (non normalisée puis normalisée)
+        n_ramp = np.array([-tan_theta, 1.0, 0.0])
+        n_ramp /= np.linalg.norm(n_ramp)
+
+        n_floor = np.array([0.0, 1.0, 0.0])
+
+        # Pour replacer le cube une seule fois (évite l'accumulation)
+        required_vertical_shift = 0.0
+
+        # ---------- 3. Traitement sommet par sommet ----------
+        for vertex in self.rotated_vertices:
+            x, y, z = vertex
+
+            # Choix du plan (sol ou rampe)
+            if (x_ramp_min <= x <= x_ramp_max and
+                z_ramp_min <= z <= z_ramp_max):
+                plane_y = (x - x_ramp_min) * tan_theta
+                plane_normal = n_ramp
+            else:
+                plane_y = 0.0
+                plane_normal = n_floor
+
+            # Collision ?
+            penetration = plane_y - y
+            if penetration > 0.0:  # le sommet est sous le plan
+                # --- Impulsion (même technique que sol/mur complexes) ---
+                relative_pos = vertex - self.position
+                vertex_vel  = self.velocity + np.cross(self.angular_velocity,
+                                                       relative_pos)
+
+                v_rel_normal = np.dot(vertex_vel, plane_normal)
+                if v_rel_normal < 0:  # ne corrige que si on entre dans le plan
+                    r_cross_n = np.cross(relative_pos, plane_normal)
+                    denom = (1 / mass) + np.dot(
+                        plane_normal,
+                        np.cross(np.divide(r_cross_n, I,
+                                           out=np.zeros_like(r_cross_n),
+                                           where=I != 0),
+                                 relative_pos)
+                    )
+
+                    if denom != 0.0:
+                        j = -v_rel_normal / denom  # scalaire d'impulsion
+                        self.velocity += (j * plane_normal) / mass
+                        self.angular_velocity += np.divide(
+                            np.cross(relative_pos, j * plane_normal), I,
+                            out=np.zeros(3), where=I != 0)
+
+                # --- Mémoriser le décalage vertical minimal requis ---
+                # (on n'ajuste qu'en Y pour rester simple et stable)
+                required_vertical_shift = max(required_vertical_shift,
+                                              penetration)
+
+        # ---------- 4. Ré‐ajustement global de la position ----------
+        if required_vertical_shift > 0.0:
+            self.position[1] += required_vertical_shift
+
+        # ---------- 5. Garder la rotation bornée ----------
+        self.rotation = np.mod(self.rotation, 2 * math.pi)
 
     def update_on_stairs(self, stairs_coordinates_flat: dict[int, list[tuple[float, float]]], stairs_coordinates_vertical: dict[int, list[tuple[float, float, float]]], points_per_edge: int = 3):
         """
