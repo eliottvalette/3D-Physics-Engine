@@ -1,3 +1,4 @@
+# config.py
 import numpy as np
 
 # --- Configuration ---

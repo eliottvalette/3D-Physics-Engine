@@ -1,3 +1,4 @@
+# staircase.py
 import pygame
 import numpy as np
 import math
@@ -91,7 +92,7 @@ while running:
     vel_text = f"Vitesse: ({cube.velocity[0]:.2f}, {cube.velocity[1]:.2f}, {cube.velocity[2]:.2f})"
     cam_text = f"Caméra: ({camera.position[0]:.1f}, {camera.position[1]:.1f}, {camera.position[2]:.1f})"
     floor_distance_text = f"Distance au sol: {cube.height_of_ground_below(cube.position, staircase.step_coordinates_flat):.2f}"
-    wall_distance_text = f"Distance au mur: {cube.distance_to_wall(cube.position, staircase.step_coordinates_vertical):.2f}"
+    wall_distance_text = f"Distance au mur: {cube.coord_of_wall_next_to_vertex(cube.position, staircase.step_coordinates_vertical):.2f}"
     
     pos_surface = font.render(pos_text, True, WHITE)
     vel_surface = font.render(vel_text, True, WHITE)

@@ -1,3 +1,4 @@
+# first_scene.py
 import pygame
 import numpy as np
 import math
