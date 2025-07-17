@@ -7,6 +7,7 @@ from config import *
 from camera import Camera3D
 from cube import Cube3D
 from ground import Ground        
+from update_functions import *
     
 
 # --- Initialisation Pygame ---
@@ -71,7 +72,7 @@ while running:
         cube.reset()
     
     # --- Mise à jour physique ---
-    cube.update_ground_only_simple()
+    update_ground_only_simple(cube)
     
     # --- Rendu ---
     screen.fill(BLACK)

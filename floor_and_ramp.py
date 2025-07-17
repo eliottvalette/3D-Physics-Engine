@@ -7,7 +7,8 @@ from pygame.locals import *
 from config import *
 from camera import Camera3D
 from cube import Cube3D
-from ground import FloorAndRamp        
+from ground import FloorAndRamp
+from update_functions import *
     
 
 # --- Initialisation Pygame ---
@@ -75,7 +76,7 @@ while running:
         cube.reset()
     
     # --- Mise à jour physique ---
-    cube.update_floor_and_ramp(x_ramp_min=0, x_ramp_max=20, z_ramp_min=0, z_ramp_max=20, ramp_angle=45)
+    update_floor_and_ramp(cube, x_ramp_min=0, x_ramp_max=20, z_ramp_min=0, z_ramp_max=20, ramp_angle_degrees=45)
     
     # --- Rendu ---
     screen.fill(BLACK)
@@ -92,7 +93,7 @@ while running:
     pos_text = f"Position: ({cube.position[0]:.2f}, {cube.position[1]:.2f}, {cube.position[2]:.2f})"
     vel_text = f"Vitesse: ({cube.velocity[0]:.2f}, {cube.velocity[1]:.2f}, {cube.velocity[2]:.2f})"
     cam_text = f"Caméra: ({camera.position[0]:.1f}, {camera.position[1]:.1f}, {camera.position[2]:.1f})"
-    angular_vel_text = f"Rotation: ({cube.angular_velocity[0]:.2f}, {cube.angular_velocity[1]:.2f}, {cube.angular_velocity[2]:.2f})"
+    angular_vel_text = f"Vélocité de rotation: ({cube.angular_velocity[0]:.2f}, {cube.angular_velocity[1]:.2f}, {cube.angular_velocity[2]:.2f})"
     
     if rd.random() < 0.1:
         print(pos_text)

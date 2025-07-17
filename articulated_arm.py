@@ -8,7 +8,7 @@ from camera import Camera3D
 from cube import Cube3D
 from ground import Ground
 from joint import Joint
-    
+from update_functions import *
 
 # --- Initialisation Pygame ---
 pygame.init()
@@ -95,8 +95,7 @@ while running:
     
     # --- Mise à jour physique ---
     joint.update()
-    forearm.update_ground_only_complex()
-    biceps.update_ground_only_complex()
+    update_two_objects_with_joint(forearm, biceps, joint)
     
     # --- Rendu ---
     screen.fill(BLACK)

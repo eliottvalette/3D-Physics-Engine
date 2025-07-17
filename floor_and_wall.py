@@ -7,7 +7,8 @@ from pygame.locals import *
 from config import *
 from camera import Camera3D
 from cube import Cube3D
-from ground import FloorAndWall        
+from ground import FloorAndWall
+from update_functions import *
     
 
 # --- Initialisation Pygame ---
@@ -74,7 +75,7 @@ while running:
         cube.reset()
     
     # --- Mise à jour physique ---
-    cube.update_ground_and_wall_complex(floor_level=0, wall_distance=floor_and_wall.size)
+    update_ground_and_wall_complex(cube, floor_level=0, wall_distance=floor_and_wall.size)
     
     # --- Rendu ---
     screen.fill(BLACK)
