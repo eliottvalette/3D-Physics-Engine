@@ -1,6 +1,7 @@
 # update_functions.py
 import numpy as np
 import math
+import random
 
 from config import DT, GRAVITY
 from cube import Cube3D
@@ -357,7 +358,7 @@ def update_on_stairs(object: Cube3D, stairs_coordinates_flat: dict[int, list[tup
         # TODO:
         pass
 
-def update_two_objects_with_joint(object_1: Cube3D, object_2: Cube3D, joint: Joint):
+def update_two_objects_with_joint(object_1: Cube3D, object_2: Cube3D, second_pass):
     """
     Mise à jour des deux objets avec leur joint.
     Pour cela, l'angle du joint sera fixé, et les 
@@ -365,3 +366,197 @@ def update_two_objects_with_joint(object_1: Cube3D, object_2: Cube3D, joint: Joi
 
     Nous recupererons les sommets de chaque objet, et nous les mettrons à jour en conséquence comme un tout.
     """
+
+    # Mettre à jour les sommets du cube
+    object_1.rotated_vertices = object_1.get_vertices()
+    object_2.rotated_vertices = object_2.get_vertices()
+
+    # Constantes physiques
+    mass = 1.0
+    # Tenseur d'inertie d'un pavé droit homogène (diagonal)
+    I_1 = np.array([
+        (1/12) * mass * (object_1.y_length**2 + object_1.z_length**2),
+        (1/12) * mass * (object_1.x_length**2 + object_1.z_length**2),
+        (1/12) * mass * (object_1.x_length**2 + object_1.y_length**2)
+    ])
+
+    I_2 = np.array([
+        (1/12) * mass * (object_2.y_length**2 + object_2.z_length**2),
+        (1/12) * mass * (object_2.x_length**2 + object_2.z_length**2),
+        (1/12) * mass * (object_2.x_length**2 + object_2.y_length**2)
+    ])
+
+    # Appliquer la gravité au centre de masse
+    object_1.velocity += GRAVITY * DT if not second_pass else np.array([0, 0, 0])
+    object_2.velocity += GRAVITY * DT
+
+    # Mise à jour de la position et de la rotation
+    object_1.position += object_1.velocity * DT if not second_pass else np.array([0, 0, 0])
+    object_2.position += object_2.velocity * DT
+    object_1.rotation += object_1.angular_velocity * DT if not second_pass else np.array([0, 0, 0])
+    object_2.rotation += object_2.angular_velocity * DT
+    
+    # Recalculer les sommets après mise à jour
+    object_1.rotated_vertices = object_1.get_vertices()
+    object_2.rotated_vertices = object_2.get_vertices()
+
+    # Merge les sommets des deux objets
+    merged_vertices = object_1.rotated_vertices + object_2.rotated_vertices
+    # Trier les sommets du plus proche du sol au plus loin
+    sorted_vertices = sorted(merged_vertices, key=lambda v: v[1])
+    # is_close_to_ground si le plus proche <= 0.03
+    is_close_to_ground = sorted_vertices[0][1] <= 0.03
+    # is_on_ground si au moins 3 sommets sont <= 0.03
+    is_on_ground = sorted_vertices[8][1] <= 0.03
+
+    # Si le cube est au sol, appliquer une stabilisation plus agressive
+    if is_close_to_ground :
+        # Réduire drastiquement les vitesses horizontales et angulaires
+        object_1.velocity[0] *= 0.95
+        object_1.velocity[2] *= 0.95
+        object_1.angular_velocity *= 0.95
+        object_2.velocity[0] *= 0.95
+        object_2.velocity[2] *= 0.95
+        object_2.angular_velocity *= 0.95
+    
+    if is_on_ground :
+        # Réduire drastiquement les vitesses horizontales et angulaires
+        object_1.velocity[0] *= 0.2
+        object_1.velocity[2] *= 0.2
+        object_1.angular_velocity *= 0.1  # Réduction très forte quand sur le sol
+        object_2.velocity[0] *= 0.2
+        object_2.velocity[2] *= 0.2
+        object_2.angular_velocity *= 0.1  # Réduction très forte quand sur le sol
+
+        # Réduire drastiquement la vitesse verticale
+        object_1.velocity[1] *= 0.2
+        object_2.velocity[1] *= 0.2
+    
+    ## --- 2. boucle sommets sur le plat -------------------------------------------------
+
+    # shuffle les sommets
+    random.shuffle(merged_vertices)
+
+    # Pour chaque sommet, vérifier la collision avec le sol
+    for vertex in merged_vertices:
+        if vertex[1] < 0:
+            # Position du sommet par rapport au centre de masse (c'est ce qui permet de casser la symétrie de la force d'impulsion)
+            relative_position = vertex - object_1.position
+            # Vitesse du sommet (translation + rotation)
+            vertex_velocity = object_1.velocity + np.cross(object_1.angular_velocity, relative_position)
+            # Si le sommet descend, on annule la composante verticale
+            if vertex_velocity[1] < 0:
+                # Impulsion nécessaire pour annuler la vitesse verticale
+                normal = np.array([0, 1, 0])  # normale du sol
+                relative_velocity = np.dot(vertex_velocity, normal)
+                # Calcul de l'impulsion scalaire
+                r_cross_n = np.cross(relative_position, normal)
+                denom = (1/mass) + np.dot(normal, np.cross(np.divide(r_cross_n, I_1, out=np.zeros_like(r_cross_n), where=I_1!=0), relative_position))
+                if denom == 0:
+                    continue
+                scalar_impulse = -relative_velocity / denom
+                # Appliquer l'impulsion au centre de masse
+                object_1.velocity += (scalar_impulse * normal) / mass
+                # Appliquer l'impulsion angulaire
+                object_1.angular_velocity += np.divide(np.cross(relative_position, scalar_impulse * normal), I_1, out=np.zeros(3), where=I_1!=0)
+            
+            # Replacer le sommet sur le sol en ajustant la position du centre de masse
+            object_1.position[1] = max(object_1.position[1], -relative_position[1])
+    
+    # Optionnel : limiter la rotation pour éviter les dérives numériques
+    object_1.rotation = np.mod(object_1.rotation, 2 * np.pi)
+    object_2.rotation = np.mod(object_2.rotation, 2 * np.pi)
+
+def update_multiple_objects_with_joints(objects: list[Cube3D]):
+    """
+    Mise à jour des objets avec leurs joints.
+    """
+    # Mettre à jour les sommets du cube
+    for object in objects:
+        object.rotated_vertices = object.get_vertices()
+
+    # Constantes physiques
+    mass = 1.0
+    # Tenseur d'inertie d'un pavé droit homogène (diagonal)
+    Is = []
+    for object in objects:
+        Is.append(np.array([
+            (1/12) * mass * (object.y_length**2 + object.z_length**2),
+            (1/12) * mass * (object.x_length**2 + object.z_length**2),
+            (1/12) * mass * (object.x_length**2 + object.y_length**2)
+        ]))
+
+    # Appliquer la gravité au centre de masse
+    for object in objects:
+        object.velocity += GRAVITY * DT
+
+    # Mise à jour de la position et de la rotation
+    for object in objects:
+        object.position += object.velocity * DT
+        object.rotation += object.angular_velocity * DT
+    
+    # Recalculer les sommets après mise à jour
+    for object in objects:
+        object.rotated_vertices = object.get_vertices()
+
+    # Merge les sommets des deux objets
+    merged_vertices = []
+    for object in objects:
+        merged_vertices.extend(object.rotated_vertices)
+    # Trier les sommets du plus proche du sol au plus loin
+    sorted_vertices = sorted(merged_vertices, key=lambda v: v[1])
+    # is_close_to_ground si le plus proche <= 0.03
+    is_close_to_ground = sorted_vertices[0][1] <= 0.03
+    # is_on_ground si au moins 3 sommets sont <= 0.03
+    is_on_ground = sorted_vertices[2][1] <= 0.03
+
+    # Si le cube est au sol, appliquer une stabilisation plus agressive
+    if is_close_to_ground :
+        # Réduire drastiquement les vitesses horizontales et angulaires
+        for object in objects:
+            object.velocity[0] *= 0.9
+            object.velocity[2] *= 0.9
+            object.angular_velocity *= 0.9
+    
+    if is_on_ground:
+        # Réduire drastiquement les vitesses horizontales et angulaires
+        for object in objects:
+            object.velocity[0] *= 0.2
+            object.velocity[2] *= 0.2
+            object.angular_velocity *= 0.1  # Réduction très forte quand sur le sol
+
+        # Réduire drastiquement la vitesse verticale
+        for object in objects:
+            object.velocity[1] *= 0.2
+    
+    ## --- 2. boucle sommets sur le plat -------------------------------------------------
+
+    # Pour chaque sommet, vérifier la collision avec le sol
+    for vertex in merged_vertices:
+        if vertex[1] < 0:
+            # Position du sommet par rapport au centre de masse (c'est ce qui permet de casser la symétrie de la force d'impulsion)
+            relative_position = vertex - objects[0].position
+            # Vitesse du sommet (translation + rotation)
+            vertex_velocity = objects[0].velocity + np.cross(objects[0].angular_velocity, relative_position)
+            # Si le sommet descend, on annule la composante verticale
+            if vertex_velocity[1] < 0:
+                # Impulsion nécessaire pour annuler la vitesse verticale
+                normal = np.array([0, 1, 0])  # normale du sol
+                relative_velocity = np.dot(vertex_velocity, normal)
+                # Calcul de l'impulsion scalaire
+                r_cross_n = np.cross(relative_position, normal)
+                denom = (1/mass) + np.dot(normal, np.cross(np.divide(r_cross_n, Is[0], out=np.zeros_like(r_cross_n), where=Is[0]!=0), relative_position))
+                if denom == 0:
+                    continue
+                scalar_impulse = -relative_velocity / denom
+                # Appliquer l'impulsion au centre de masse
+                objects[0].velocity += (scalar_impulse * normal) / mass
+                # Appliquer l'impulsion angulaire
+                objects[0].angular_velocity += np.divide(np.cross(relative_position, scalar_impulse * normal), Is[0], out=np.zeros(3), where=Is[0]!=0)
+            
+            # Replacer le sommet sur le sol en ajustant la position du centre de masse
+            objects[0].position[1] = max(objects[0].position[1], -relative_position[1])
+    
+    # Optionnel : limiter la rotation pour éviter les dérives numériques
+    for object in objects:
+        object.rotation = np.mod(object.rotation, 2 * np.pi)

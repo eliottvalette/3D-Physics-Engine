@@ -7,7 +7,7 @@ from camera import Camera3D
 from config import *
 
 class Joint:
-    def __init__(self, object_1: Cube3D, object_2: Cube3D, face_1: int, face_2: int, initial_angle=0.0):
+    def __init__(self, object_1: Cube3D, object_2: Cube3D, face_1: int = -1, face_2: int = -1, corner_1: int = -1, corner_2: int = -1, initial_angle: float = 0.0, color: tuple[int, int, int] = (0, 255, 0)):
         """
         object_1 : Cube3D
         object_2 : Cube3D
@@ -19,7 +19,17 @@ class Joint:
         self.object_2 = object_2
         self.face_1 = face_1
         self.face_2 = face_2
+        self.corner_1 = corner_1
+        self.corner_2 = corner_2
         self.angle = initial_angle  # Angle du joint en radians
+        self.color = color
+
+        self.joint_position_1 = None
+        self.joint_position_2 = None
+        self.joint_position = None
+
+        self.using_face_1 = face_1 != -1
+        self.using_face_2 = face_2 != -1
         
         # Calculer les positions initiales
         self.update_positions()
@@ -27,7 +37,7 @@ class Joint:
     def update_positions(self):
         """Met à jour les positions des objets pour respecter l'angle du joint"""
         # Position du joint (point de connexion toujours sur l'objet 1)
-        joint_position = self.object_1.get_face_center(self.face_1)
+        joint_position = self.object_1.get_face_center(self.face_1) if self.using_face_1 else self.object_1.get_corner_position(self.corner_1)
         
         # Calculer la direction de l'objet 2 suivant l'angle du joint
         object_2_direction = np.array([
@@ -46,9 +56,9 @@ class Joint:
         self.object_2.rotation[2] = self.angle
         
         # Mettre à jour les positions des points de joint
-        self.position_1 = self.object_1.get_face_center(self.face_1)
-        self.position_2 = self.object_2.get_face_center(self.face_2)
-        self.position = (self.position_1 + self.position_2) / 2
+        self.joint_position_1 = self.object_1.get_face_center(self.face_1) if self.using_face_1 else self.object_1.get_corner_position(self.corner_1)
+        self.joint_position_2 = self.object_2.get_face_center(self.face_2) if self.using_face_2 else self.object_2.get_corner_position(self.corner_2)
+        self.joint_position = (self.joint_position_1 + self.joint_position_2) / 2
 
     def set_angle(self, angle):
         """Définit l'angle du joint et met à jour les positions"""
@@ -62,32 +72,20 @@ class Joint:
     
     def draw(self, screen: pygame.Surface, camera: Camera3D):
         """
-        Dessine le joint sur l'écran
-        Le joint est un carré de 4x4 pixels
+        Dessine le joint sur l'écran, 
+        On dessine un carré de 4x4 pixels en joint_position,
         et on trace les lignes qui relient le joint à object_1 et object_2
         """
-        projected_position_1 = camera.project_3d_to_2d(self.position_1)
-        projected_position_2 = camera.project_3d_to_2d(self.position_2)
-        projected_position = camera.project_3d_to_2d(self.position)
+        projected_position_1 = camera.project_3d_to_2d(self.joint_position_1)
+        projected_position_2 = camera.project_3d_to_2d(self.joint_position_2)
+        projected_joint_position = camera.project_3d_to_2d(self.joint_position)
 
-        # Dessiner le joint (carré de 4x4 pixels)
-        if projected_position:
-            joint_size = 4
-            joint_rect = pygame.Rect(
-                projected_position[0] - joint_size // 2,
-                projected_position[1] - joint_size // 2,
-                joint_size,
-                joint_size
-            )
-            pygame.draw.rect(screen, WHITE, joint_rect)
+        if projected_position_1 and projected_position_2 and projected_joint_position :
+            print(self.color)
+
+            # Dessiner le carré de 4x4 pixels en joint_position
+            pygame.draw.rect(screen, self.color, (projected_joint_position[0] - 2, projected_joint_position[1] - 2, 4, 4))
+
+            # Dessiner le lien entre le point d'ancrage entre object_1 et object_2
+            pygame.draw.line(screen, self.color, (projected_position_1[0], projected_position_1[1]), (projected_position_2[0], projected_position_2[1]), 1)
             
-            # Dessiner les lignes qui relient le joint aux objets
-            if projected_position_1:
-                pygame.draw.line(screen, GREEN, 
-                               (projected_position[0], projected_position[1]),
-                               (projected_position_1[0], projected_position_1[1]), 2)
-            
-            if projected_position_2:
-                pygame.draw.line(screen, GREEN,
-                               (projected_position[0], projected_position[1]),
-                               (projected_position_2[0], projected_position_2[1]), 2)

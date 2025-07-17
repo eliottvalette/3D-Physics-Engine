@@ -6,7 +6,7 @@ from camera import Camera3D
 import math
 
 class Cube3D:
-    def __init__(self, position, x_length = 1, y_length = 1, z_length = 1, rotation = np.array([0.0, 0.0, 0.0]), velocity = np.array([0.0, 0.0, 0.0])):
+    def __init__(self, position, x_length = 1, y_length = 1, z_length = 1, rotation = np.array([0.0, 0.0, 0.0]), velocity = np.array([0.0, 0.0, 0.0]), color = (255, 255, 255)):
         self.initial_position = position.copy()
         self.initial_velocity = velocity.copy()
         self.initial_rotation = np.array([0.0, 0.0, 0.0]).copy()
@@ -20,6 +20,7 @@ class Cube3D:
         self.x_length = float(x_length)
         self.y_length = float(y_length)
         self.z_length = float(z_length)
+        self.color = color
 
         self.rotated_vertices = self.get_vertices()
     
@@ -33,6 +34,14 @@ class Cube3D:
         """
         Retourne le centre de la face donnée par son index parmi les 6 faces
         Prend en compte la rotation du cube
+
+        L'ordre des faces est :
+        0: face supérieure (+y)
+        1: face droite (+x)
+        2: face inférieure (-y)
+        3: face gauche (-x)
+        4: face avant (+z)
+        5: face arrière (-z)
         """
         # Définir le centre de la face dans le repère local du cube
         if face_index == 0:
@@ -74,6 +83,22 @@ class Cube3D:
         
         # Ajouter la position du cube
         return self.position + rotated_center
+
+    def get_corner_position(self, corner_index: int) -> np.array:
+        """
+        Retourne la position du coin donné par son index (0 à 7) dans le repère monde.
+        L'ordre des coins est :
+        0: (-x, -y, -z)
+        1: (+x, -y, -z)
+        2: (-x, +y, -z)
+        3: (+x, +y, -z)
+        4: (-x, -y, +z)
+        5: (+x, -y, +z)
+        6: (-x, +y, +z)
+        7: (+x, +y, +z)
+        """
+        return self.get_vertices()[corner_index]
+         
 
     def get_large_bounding_box(self, camera: Camera3D):
         """
@@ -198,10 +223,11 @@ class Cube3D:
             if edge[0] < len(projected_vertices) and edge[1] < len(projected_vertices):
                 start = projected_vertices[edge[0]][:2]
                 end = projected_vertices[edge[1]][:2]
+                
                 # Vérifier que les coordonnées sont valides
                 if (0 <= start[0] < WINDOW_WIDTH and 0 <= start[1] < WINDOW_HEIGHT and
                     0 <= end[0] < WINDOW_WIDTH and 0 <= end[1] < WINDOW_HEIGHT):
-                    pygame.draw.line(screen, WHITE, start, end, 2)
+                    pygame.draw.line(screen, self.color, start, end, 2)
         
     def draw_bounding_box(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le grand rectangle englobant le cube"""
