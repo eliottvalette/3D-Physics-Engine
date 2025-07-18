@@ -1,14 +1,15 @@
-# articulated_arm.py
+# tilted_polygon.py
 import pygame
 import numpy as np
+import random as rd
 import math
 from pygame.locals import *
 from config import *
 from camera import Camera3D
-from cube import Cube3D
+from quadruped import Polygon3D
 from ground import Ground
-from joint import Joint
 from update_functions import *
+    
 
 # --- Initialisation Pygame ---
 pygame.init()
@@ -18,26 +19,29 @@ clock = pygame.time.Clock()
 
 # --- Objets du monde ---
 camera = Camera3D()
-ground = Ground(size=20)
-forearm = Cube3D(
+
+# Créer un polygone 3D avec des formes bizarres (12 sommets)
+vertices = [
+    np.array([0.0, 3.0, 0.0]),     # Sommet supérieur pointu
+    np.array([-2.0, 1.0, -1.5]),   # Sommet arrière-gauche haut
+    np.array([2.0, 1.0, -1.5]),    # Sommet arrière-droite haut
+    np.array([-1.5, 0.0, -2.0]),   # Sommet arrière-gauche bas
+    np.array([1.5, 0.0, -2.0]),    # Sommet arrière-droite bas
+    np.array([-2.5, -1.0, 0.0]),   # Sommet gauche extrême
+    np.array([2.5, -1.0, 0.0]),    # Sommet droit extrême
+    np.array([-1.5, 0.0, 2.0]),    # Sommet avant-gauche bas
+    np.array([1.5, 0.0, 2.0]),     # Sommet avant-droite bas
+    np.array([-2.0, 1.0, 1.5]),    # Sommet avant-gauche haut
+    np.array([2.0, 1.0, 1.5]),     # Sommet avant-droite haut
+    np.array([0.0, -2.0, 0.0])     # Sommet inférieur pointu
+]
+
+polygon = Polygon3D(
     position=np.array([1.0, 8.0, 1.0]),
-    x_length=3.0,
-    y_length=1.0,
-    z_length=1.0
+    vertices=vertices,
+    rotation=np.array([1.0, 1.0, 1.0])
 )
-biceps = Cube3D(
-    position=np.array([4.2, 8.0, 1.0]),
-    x_length=2.0,
-    y_length=1.0,
-    z_length=1.0
-)
-joint = Joint(
-    object_1=forearm, 
-    object_2=biceps, 
-    face_1=1, 
-    face_2=3,
-    initial_angle=0.0  # Joint ouvert plat au début
-)
+ground = Ground(size=20)
 
 # --- Contrôles caméra ---
 camera_speed = 0.1
@@ -82,20 +86,10 @@ while running:
         camera.rotation[0] -= rotation_speed
 
     if keys[K_SPACE]:
-        forearm.reset()
-        biceps.reset()
-    
-    # Contrôles du joint
-    if keys[K_r]:  # R = Plier le joint (diminuer l'angle)
-        current_angle = joint.angle
-        joint.set_angle(current_angle - 0.05)  # Plier de 0.05 radians
-    if keys[K_f]:  # F = Déplier le joint (augmenter l'angle)
-        current_angle = joint.angle
-        joint.set_angle(current_angle + 0.05)  # Déplier de 0.05 radians
+        polygon.reset()
     
     # --- Mise à jour physique ---
-    joint.update()
-    update_two_objects_with_joint(forearm, biceps, joint)
+    update_polygon_with_ground(polygon)
     
     # --- Rendu ---
     screen.fill(BLACK)
@@ -103,28 +97,31 @@ while running:
     # Dessiner le monde 3D
     ground.draw(screen, camera)
     ground.draw_axes(screen, camera)
-    forearm.draw(screen, camera)
-    biceps.draw(screen, camera)
-    joint.draw(screen, camera)
+    polygon.draw(screen, camera)
     
     # --- Interface utilisateur ---
     font = pygame.font.Font(None, 24)
     
     # Informations de position
-    pos_text = f"Position: ({forearm.position[0]:.2f}, {forearm.position[1]:.2f}, {forearm.position[2]:.2f})"
-    vel_text = f"Vitesse: ({forearm.velocity[0]:.2f}, {forearm.velocity[1]:.2f}, {forearm.velocity[2]:.2f})"
+    pos_text = f"Position: ({polygon.position[0]:.2f}, {polygon.position[1]:.2f}, {polygon.position[2]:.2f})"
+    vel_text = f"Vitesse: ({polygon.velocity[0]:.2f}, {polygon.velocity[1]:.2f}, {polygon.velocity[2]:.2f})"
     cam_text = f"Caméra: ({camera.position[0]:.1f}, {camera.position[1]:.1f}, {camera.position[2]:.1f})"
-    joint_text = f"Angle joint: {math.degrees(joint.angle):.1f}°"
+    angular_vel_text = f"Rotation: ({polygon.angular_velocity[0]:.2f}, {polygon.angular_velocity[1]:.2f}, {polygon.angular_velocity[2]:.2f})"
     
+    if rd.random() < 0.1:
+        print(pos_text)
+        print(vel_text)
+        print(angular_vel_text)
+
     pos_surface = font.render(pos_text, True, WHITE)
     vel_surface = font.render(vel_text, True, WHITE)
     cam_surface = font.render(cam_text, True, WHITE)
-    joint_surface = font.render(joint_text, True, WHITE)
+    angular_vel_surface = font.render(angular_vel_text, True, WHITE)
     
     screen.blit(pos_surface, (10, 10))
     screen.blit(vel_surface, (10, 35))
     screen.blit(cam_surface, (10, 60))
-    screen.blit(joint_surface, (10, 85))
+    screen.blit(angular_vel_surface, (10, 85))
     
     # Instructions
     instructions = [
@@ -132,8 +129,7 @@ while running:
         "ZQSD - Déplacer caméra",
         "AE - Monter/Descendre caméra", 
         "Flèches - Rotation caméra",
-        "R/F - Plier/Déplier le joint",
-        "Espace - Reset cube",
+        "Espace - Reset polygone",
         "Échap - Quitter"
     ]
     
@@ -145,4 +141,4 @@ while running:
     pygame.display.flip()
     clock.tick(FPS)
 
-pygame.quit()
+pygame.quit() 

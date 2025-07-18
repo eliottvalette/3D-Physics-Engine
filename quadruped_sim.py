@@ -1,13 +1,13 @@
-# double_articulated_arm.py
+# quadruped.py
 import pygame
 import numpy as np
 import math
 from pygame.locals import *
 from config import *
 from camera import Camera3D
-from cube import Cube3D
+from quadruped import Quadruped
+from quadruped_points import get_quadruped_vertices, create_quadruped_vertices
 from ground import Ground
-from joint import Joint
 from update_functions import *
 
 # --- Initialisation Pygame ---
@@ -19,40 +19,10 @@ clock = pygame.time.Clock()
 # --- Objets du monde ---
 camera = Camera3D()
 ground = Ground(size=20)
-first = Cube3D(
-    position=np.array([1.0, 8.0, 1.0]),
-    x_length=3.0,
-    y_length=1.0,
-    z_length=1.0,
-    color=(255, 0, 0)
-)
-second = Cube3D(
-    position=np.array([4.2, 8.0, 1.0]),
-    x_length=2.0,
-    y_length=1.0,
-    z_length=1.0,
-    color=(0, 255, 0)
-)
-third = Cube3D(
-    position=np.array([7.4, 8.0, 1.0]),
-    x_length=2.0,
-    y_length=1.0,
-    z_length=1.0,
-    color=(0, 0, 255)
-)
-joint_1 = Joint(
-    object_1=first, 
-    object_2=second, 
-    face_1=1, 
-    face_2=3,
-    initial_angle=0.0  # Joint ouvert plat au début
-)
-joint_2 = Joint(
-    object_1=second, 
-    object_2=third, 
-    face_1=1, 
-    face_2=3,
-    initial_angle=0.0  # Joint ouvert plat au début
+quadruped = Quadruped(
+    position=np.array([0.0, 5.5, 0.0]),
+    vertices=get_quadruped_vertices(),
+    vectrices_dict=create_quadruped_vertices()
 )
 
 # --- Contrôles caméra ---
@@ -98,29 +68,13 @@ while running:
         camera.rotation[0] -= rotation_speed
 
     if keys[K_SPACE]:
-        first.reset()
-        second.reset()
-        third.reset()
+        quadruped.reset()
     
-    # Contrôles du joint
-    if keys[K_r]:  # R = Plier le joint (diminuer l'angle)
-        current_angle = joint_1.angle
-        joint_1.set_angle(current_angle - 0.05)  # Plier de 0.05 radians
-    if keys[K_f]:  # F = Déplier le joint (augmenter l'angle)
-        current_angle = joint_1.angle
-        joint_1.set_angle(current_angle + 0.05)  # Déplier de 0.05 radians
-    if keys[K_t]:  # T = Plier le joint (diminuer l'angle)
-        current_angle = joint_2.angle
-        joint_2.set_angle(current_angle - 0.05)  # Plier de 0.05 radians
-    if keys[K_g]:  # G = Déplier le joint (augmenter l'angle)
-        current_angle = joint_2.angle
-        joint_2.set_angle(current_angle + 0.05)  # Déplier de 0.05 radians
+    if keys[K_h]:
+        print(quadruped.get_vertices())
     
     # --- Mise à jour physique ---
-    joint_1.update()
-    joint_2.update()
-    update_two_objects_with_joint(first, second, False)
-    update_two_objects_with_joint(second, third, True)
+    # temp_polygon = update_joined_objects([body] + upper_legs + lower_legs, joints)
     
     # --- Rendu ---
     screen.fill(BLACK)
@@ -128,30 +82,23 @@ while running:
     # Dessiner le monde 3D
     ground.draw(screen, camera)
     ground.draw_axes(screen, camera)
-    first.draw(screen, camera)
-    second.draw(screen, camera)
-    third.draw(screen, camera)
-    joint_1.draw(screen, camera)
-    joint_2.draw(screen, camera)
+    quadruped.draw(screen, camera)
     
     # --- Interface utilisateur ---
     font = pygame.font.Font(None, 24)
     
     # Informations de position
-    pos_text = f"Position: ({first.position[0]:.2f}, {first.position[1]:.2f}, {first.position[2]:.2f})"
-    vel_text = f"Vitesse: ({first.velocity[0]:.2f}, {first.velocity[1]:.2f}, {first.velocity[2]:.2f})"
+    pos_text = f"Position: ({quadruped.position[0]:.2f}, {quadruped.position[1]:.2f}, {quadruped.position[2]:.2f})"
+    vel_text = f"Vitesse: ({quadruped.velocity[0]:.2f}, {quadruped.velocity[1]:.2f}, {quadruped.velocity[2]:.2f})"
     cam_text = f"Caméra: ({camera.position[0]:.1f}, {camera.position[1]:.1f}, {camera.position[2]:.1f})"
-    joint_text = f"Angle joint: {math.degrees(joint_1.angle):.1f}°"
     
     pos_surface = font.render(pos_text, True, WHITE)
     vel_surface = font.render(vel_text, True, WHITE)
     cam_surface = font.render(cam_text, True, WHITE)
-    joint_surface = font.render(joint_text, True, WHITE)
     
     screen.blit(pos_surface, (10, 10))
     screen.blit(vel_surface, (10, 35))
     screen.blit(cam_surface, (10, 60))
-    screen.blit(joint_surface, (10, 85))
     
     # Instructions
     instructions = [
@@ -159,9 +106,8 @@ while running:
         "ZQSD - Déplacer caméra",
         "AE - Monter/Descendre caméra", 
         "Flèches - Rotation caméra",
-        "R/F - Plier/Déplier le joint",
-        "T/G - Plier/Déplier le joint",
-        "Espace - Reset cube",
+        "Espace - Reset quadruped",
+        "H - Afficher les sommets",
         "Échap - Quitter"
     ]
     

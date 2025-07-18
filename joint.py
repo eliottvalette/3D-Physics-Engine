@@ -81,8 +81,6 @@ class Joint:
         projected_joint_position = camera.project_3d_to_2d(self.joint_position)
 
         if projected_position_1 and projected_position_2 and projected_joint_position :
-            print(self.color)
-
             # Dessiner le carré de 4x4 pixels en joint_position
             pygame.draw.rect(screen, self.color, (projected_joint_position[0] - 2, projected_joint_position[1] - 2, 4, 4))
 
