@@ -3,10 +3,21 @@ import numpy as np
 import math
 import random
 
-from config import DT, GRAVITY
+from config import DT, GRAVITY, RESTITUTION, FRICTION, CONTACT_THRESHOLD_BASE, CONTACT_THRESHOLD_MULTIPLIER
+from config import MAX_VELOCITY, MAX_ANGULAR_VELOCITY, MAX_IMPULSE, MAX_AVERAGE_IMPULSE
 from cube import Cube3D
 from joint import Joint
 from quadruped import Quadruped
+
+def limit_vector(vec, max_val):
+    """
+    Limite un vecteur de manière douce en préservant sa direction
+    """
+    norm = np.linalg.norm(vec)
+    if norm <= max_val:
+        return vec
+    else:
+        return vec * (max_val / norm)
 
 def update_ground_only_simple(object: Cube3D):
     # Mettre à jour les sommets du cube
@@ -359,100 +370,15 @@ def update_on_stairs(object: Cube3D, stairs_coordinates_flat: dict[int, list[tup
         # TODO:
         pass
 
-def calculate_quadruped_inertia_tensor(quadruped: Quadruped):
-    """
-    Calcule le tenseur d'inertie du quadruped en tenant compte de la masse relative
-    de chaque partie (body, upper legs, lower legs) et de leurs positions actuelles.
-    
-    Returns:
-        np.array: Tenseur d'inertie [I_xx, I_yy, I_zz] au centre de masse
-    """
-    # Masse totale du quadruped
-    total_mass = 1.0
-    
-    # Définir les masses relatives de chaque partie (basées sur le volume)
-    # Body: 4.0 * 6.0 * 1.0 = 24.0
-    # Upper legs: 4 * (1.0 * 1.0 * 1.0) = 4.0
-    # Lower legs: 4 * (1.0 * 0.8 * 2.0) = 6.4
-    # Total volume = 34.4
-    
-    body_volume = 4.0 * 6.0 * 1.0
-    upper_leg_volume = 4 * (1.0 * 1.0 * 1.0)
-    lower_leg_volume = 4 * (1.0 * 0.8 * 2.0)
-    total_volume = body_volume + upper_leg_volume + lower_leg_volume
-    
-    body_mass = total_mass * (body_volume / total_volume)
-    upper_leg_mass = total_mass * (upper_leg_volume / total_volume)
-    lower_leg_mass = total_mass * (lower_leg_volume / total_volume)
-    
-    # Masse par partie individuelle
-    single_upper_leg_mass = upper_leg_mass / 4
-    single_lower_leg_mass = lower_leg_mass / 4
-    
-    # Initialiser le tenseur d'inertie total
-    I_total = np.zeros(3)  # [I_xx, I_yy, I_zz]
-    
-    # 1. Tenseur d'inertie du body (cube)
-    body_length, body_width, body_height = 4.0, 6.0, 1.0
-    I_body_xx = (1/12) * body_mass * (body_height**2 + body_width**2)
-    I_body_yy = (1/12) * body_mass * (body_length**2 + body_width**2)
-    I_body_zz = (1/12) * body_mass * (body_length**2 + body_height**2)
-    
-    # Calculer le centre de masse du body dans le repère monde
-    body_center = quadruped.position  # Le body est centré sur la position du quadruped
-    
-    # Ajouter le tenseur d'inertie du body (théorème de Steiner)
-    I_total += np.array([I_body_xx, I_body_yy, I_body_zz])
-    
-    # 2. Tenseur d'inertie des upper legs
-    upper_leg_length, upper_leg_width, upper_leg_height = 1.0, 1.0, 1.0
-    I_upper_xx = (1/12) * single_upper_leg_mass * (upper_leg_height**2 + upper_leg_width**2)
-    I_upper_yy = (1/12) * single_upper_leg_mass * (upper_leg_length**2 + upper_leg_width**2)
-    I_upper_zz = (1/12) * single_upper_leg_mass * (upper_leg_length**2 + upper_leg_height**2)
-    
-    # Calculer les centres de masse des upper legs
-    for i in range(4):
-        # Utiliser les vertices des upper legs pour calculer leur centre
-        upper_leg_start = 8 + i * 8  # Les upper legs commencent après le body (8 vertices)
-        upper_leg_vertices = quadruped.rotated_vertices[upper_leg_start:upper_leg_start + 8]
-        
-        # Centre de masse de cette upper leg
-        upper_leg_center = np.mean(upper_leg_vertices, axis=0)
-        
-        # Distance du centre de masse de cette leg au centre de masse total
-        r = upper_leg_center - body_center
-        r_squared = np.dot(r, r)
-        
-        # Théorème de Steiner: I = I_cm + m * d²
-        I_total += np.array([I_upper_xx, I_upper_yy, I_upper_zz]) + single_upper_leg_mass * r_squared
-    
-    # 3. Tenseur d'inertie des lower legs
-    lower_leg_length, lower_leg_width, lower_leg_height = 1.0, 0.8, 2.0
-    I_lower_xx = (1/12) * single_lower_leg_mass * (lower_leg_height**2 + lower_leg_width**2)
-    I_lower_yy = (1/12) * single_lower_leg_mass * (lower_leg_length**2 + lower_leg_width**2)
-    I_lower_zz = (1/12) * single_lower_leg_mass * (lower_leg_length**2 + lower_leg_height**2)
-    
-    # Calculer les centres de masse des lower legs
-    for i in range(4):
-        # Utiliser les vertices des lower legs
-        lower_leg_start = 40 + i * 8  # Les lower legs commencent après les upper legs (8 + 4*8 = 40)
-        lower_leg_vertices = quadruped.rotated_vertices[lower_leg_start:lower_leg_start + 8]
-        
-        # Centre de masse de cette lower leg
-        lower_leg_center = np.mean(lower_leg_vertices, axis=0)
-        
-        # Distance du centre de masse de cette leg au centre de masse total
-        r = lower_leg_center - body_center
-        r_squared = np.dot(r, r)
-        
-        # Théorème de Steiner: I = I_cm + m * d²
-        I_total += np.array([I_lower_xx, I_lower_yy, I_lower_zz]) + single_lower_leg_mass * r_squared
-    
-    return I_total
-
 def update_quadruped(quadruped: Quadruped):
     """
     Collision avancée entre le quadruped et le sol avec gestion améliorée des rebonds.
+    Corrections physiques appliquées :
+    - Correction de pénétration conservatrice
+    - Critères de contact dynamiques
+    - Amortissement réaliste avec restitution et friction
+    - Limitation de vitesse douce
+    - Rotation stable
     """
 
     # Mettre à jour les sommets du cube
@@ -461,59 +387,74 @@ def update_quadruped(quadruped: Quadruped):
     # Constantes physiques
     mass = 1.0
     
-    # Calculer le tenseur d'inertie précis basé sur la masse relative de chaque partie
-    I = calculate_quadruped_inertia_tensor(quadruped)
+    # Calculer le tenseur d'inertie à partir des vertices
+    vertices = quadruped.rotated_vertices
+    x_coords = [v[0] for v in vertices]
+    y_coords = [v[1] for v in vertices]
+    z_coords = [v[2] for v in vertices]
+    
+    x_range = max(x_coords) - min(x_coords)
+    y_range = max(y_coords) - min(y_coords)
+    z_range = max(z_coords) - min(z_coords)
+    
+    # Tenseur d'inertie approximatif basé sur les dimensions calculées
+    I_xx = (1/12) * mass * (y_range**2 + z_range**2)
+    I_yy = (1/12) * mass * (x_range**2 + z_range**2)
+    I_zz = (1/12) * mass * (x_range**2 + y_range**2)
+    
+    I = np.array([I_xx, I_yy, I_zz])
 
     # Appliquer la gravité au centre de masse
     quadruped.velocity += GRAVITY * DT
 
-    # Mise à jour de la position et de la rotation
+    # Mise à jour de la position et de la rotation (CORRECTION 9: rotation stable)
     quadruped.position += quadruped.velocity * DT
-    quadruped.rotation += quadruped.angular_velocity * DT
+    quadruped.rotation = (quadruped.rotation + quadruped.angular_velocity * DT) % (2 * np.pi)
     
     # Recalculer les sommets après mise à jour
     quadruped.rotated_vertices = quadruped.get_vertices()
     
+    # CORRECTION 5: Critères de contact dynamiques
+    contact_threshold = max(CONTACT_THRESHOLD_BASE, abs(quadruped.velocity[1]) * DT * CONTACT_THRESHOLD_MULTIPLIER)
+    
     # Trier les sommets du plus proche du sol au plus loin
     sorted_vertices = sorted(quadruped.rotated_vertices, key=lambda v: v[1])
-    # is_close_to_ground si le plus proche <= 0.05
-    is_close_to_ground = sorted_vertices[0][1] <= 0.05
-    # is_on_ground si au moins 8 sommets sont <= 0.05 (réduit de 12 à 8)
-    is_on_ground = sorted_vertices[7][1] <= 0.05
+    is_close_to_ground = sorted_vertices[0][1] <= contact_threshold
+    is_on_ground = sorted_vertices[7][1] <= contact_threshold
 
-    # Limiter les vitesses maximales pour éviter la téléportation
-    max_velocity = 10.0
-    max_angular_velocity = 5.0
-    
-    quadruped.velocity = np.clip(quadruped.velocity, -max_velocity, max_velocity)
-    quadruped.angular_velocity = np.clip(quadruped.angular_velocity, -max_angular_velocity, max_angular_velocity)
+    # CORRECTION 7: Limitation de vitesse douce
+    quadruped.velocity = limit_vector(quadruped.velocity, MAX_VELOCITY)
+    quadruped.angular_velocity = limit_vector(quadruped.angular_velocity, MAX_ANGULAR_VELOCITY)
 
-    # Si le quadruped est au sol, appliquer une stabilisation plus agressive
+    # CORRECTION 6: Amortissement réaliste avec restitution et friction
     if is_close_to_ground:
-        # Réduire les vitesses horizontales et angulaires
-        quadruped.velocity[0] *= 0.9
-        quadruped.velocity[2] *= 0.9
-        quadruped.angular_velocity *= 0.9
+        # Réduire légèrement les vitesses horizontales et angulaires
+        quadruped.velocity[0] *= (1 - FRICTION * 0.1)
+        quadruped.velocity[2] *= (1 - FRICTION * 0.1)
+        quadruped.angular_velocity *= (1 - FRICTION * 0.1)
     
     if is_on_ground:
-        # Réduire drastiquement les vitesses quand sur le sol
-        quadruped.velocity[0] *= 0.3
-        quadruped.velocity[1] *= 0.1  # Réduction très forte de la vitesse verticale
-        quadruped.velocity[2] *= 0.3
-        quadruped.angular_velocity *= 0.05  # Réduction très forte de la rotation
+        # Appliquer la restitution et la friction quand sur le sol
+        quadruped.velocity[1] *= -RESTITUTION  # Rebond avec coefficient de restitution
+        quadruped.velocity[0] *= (1 - FRICTION)  # Friction horizontale
+        quadruped.velocity[2] *= (1 - FRICTION)  # Friction horizontale
+        quadruped.angular_velocity *= (1 - FRICTION)  # Friction angulaire
 
-    # Collecter toutes les collisions avant de les appliquer
-    total_impulse = np.zeros(3)
-    total_angular_impulse = np.zeros(3)
-    collision_count = 0
+    # CORRECTION 4: Correction de pénétration conservatrice
+    # Calculer la pénétration maximale sur tous les sommets
+    penetrations = []
+    collision_impulses = []
+    collision_angular_impulses = []
     
-    # Pour chaque sommet, vérifier la collision avec le sol
     for vertex in quadruped.rotated_vertices:
         if vertex[1] < 0:
             # Position du sommet par rapport au centre de masse
             relative_position = vertex - quadruped.position
             # Vitesse du sommet (translation + rotation)
             vertex_velocity = quadruped.velocity + np.cross(quadruped.angular_velocity, relative_position)
+            
+            # Enregistrer la pénétration
+            penetrations.append(-vertex[1])
             
             # Si le sommet descend, calculer l'impulsion nécessaire
             if vertex_velocity[1] < 0:
@@ -529,30 +470,26 @@ def update_quadruped(quadruped: Quadruped):
                     scalar_impulse = -relative_velocity / denom
                     
                     # Limiter l'impulsion pour éviter les rebonds excessifs
-                    max_impulse = 5.0
-                    scalar_impulse = np.clip(scalar_impulse, -max_impulse, max_impulse)
+                    scalar_impulse = np.clip(scalar_impulse, -MAX_IMPULSE, MAX_IMPULSE)
                     
-                    # Accumuler les impulsions
-                    total_impulse += (scalar_impulse * normal) / mass
-                    total_angular_impulse += np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0)
-                    collision_count += 1
-            
-            # Replacer le sommet sur le sol en ajustant la position du centre de masse
-            quadruped.position[1] = max(quadruped.position[1], -relative_position[1])
+                    # Stocker les impulsions pour application ultérieure
+                    collision_impulses.append((scalar_impulse * normal) / mass)
+                    collision_angular_impulses.append(np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0))
+
+    # Appliquer la correction de position une seule fois
+    if penetrations:
+        max_penetration = max(penetrations)
+        quadruped.position[1] += max_penetration
 
     # Appliquer les impulsions moyennées si il y a eu des collisions
-    if collision_count > 0:
+    if collision_impulses:
         # Moyenner les impulsions pour éviter l'accumulation excessive
-        average_impulse = total_impulse / collision_count
-        average_angular_impulse = total_angular_impulse / collision_count
+        average_impulse = np.mean(collision_impulses, axis=0)
+        average_angular_impulse = np.mean(collision_angular_impulses, axis=0)
         
-        # Limiter encore plus les impulsions moyennes
-        max_average_impulse = 2.0
-        average_impulse = np.clip(average_impulse, -max_average_impulse, max_average_impulse)
-        average_angular_impulse = np.clip(average_angular_impulse, -max_average_impulse, max_average_impulse)
+        # Limiter les impulsions moyennes
+        average_impulse = limit_vector(average_impulse, MAX_AVERAGE_IMPULSE)
+        average_angular_impulse = limit_vector(average_angular_impulse, MAX_AVERAGE_IMPULSE)
         
         quadruped.velocity += average_impulse
         quadruped.angular_velocity += average_angular_impulse
-
-    # Optionnel : limiter la rotation pour éviter les dérives numériques
-    quadruped.rotation = np.mod(quadruped.rotation, 2 * np.pi)
