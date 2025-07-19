@@ -32,6 +32,81 @@ class Ground:
                         rect.right > 0 and rect.bottom > 0):
                         pygame.draw.rect(screen, color, rect) 
     
+    def draw_premium(self, screen: pygame.Surface, camera: Camera3D):
+        """Dessine le sol en 3D avec faces pleines et dégradé de gris basé sur la profondeur"""
+        # Créer une grille de points pour former des faces
+        grid_size = self.size * 2 + 1
+        
+        # Collecter toutes les faces pour le tri par profondeur
+        all_faces = []
+        
+        # Parcourir la grille pour créer des faces carrées
+        for x in range(-self.size, self.size):
+            for z in range(-self.size, self.size):
+                # Créer les 4 coins d'une face carrée
+                corners_3d = [
+                    np.array([x, 0, z]),           # Coin inférieur gauche
+                    np.array([x + 1, 0, z]),       # Coin inférieur droit
+                    np.array([x + 1, 0, z + 1]),   # Coin supérieur droit
+                    np.array([x, 0, z + 1])        # Coin supérieur gauche
+                ]
+                
+                # Projeter les 4 coins
+                corners_2d = []
+                valid_face = True
+                
+                for corner in corners_3d:
+                    projected = camera.project_3d_to_2d(corner)
+                    if projected:
+                        corners_2d.append(projected)
+                    else:
+                        valid_face = False
+                        break
+                
+                if valid_face and len(corners_2d) == 4:
+                    # Calculer la profondeur moyenne de la face
+                    face_depth = sum(corner[2] for corner in corners_2d) / 4
+                    
+                    # Vérifier que tous les points sont dans les limites de l'écran
+                    points_in_screen = True
+                    for corner in corners_2d:
+                        if not (0 <= corner[0] < WINDOW_WIDTH and 0 <= corner[1] < WINDOW_HEIGHT):
+                            points_in_screen = False
+                            break
+                    
+                    if points_in_screen:
+                        all_faces.append({
+                            'corners': corners_2d,
+                            'depth': face_depth
+                        })
+        
+        # Trier les faces par profondeur (les plus éloignées en premier)
+        all_faces.sort(key=lambda face: face['depth'], reverse=True)
+        
+        # Dessiner les faces triées
+        for face in all_faces:
+            corners_2d = face['corners']
+            depth = face['depth']
+            
+            # Calculer la couleur basée sur la profondeur (dégradé de gris)
+            # Plus la profondeur est grande, plus la couleur est sombre
+            base_intensity = 180  # Gris clair de base
+            depth_factor = max(0, min(1, depth / 100))  # Normaliser la profondeur
+            intensity = int(base_intensity * (1 - depth_factor * 0.8))  # Réduire jusqu'à 20% de l'intensité
+            
+            color = (intensity, intensity, intensity)
+            
+            # Convertir les corners en points 2D pour pygame
+            points_2d = [(int(corner[0]), int(corner[1])) for corner in corners_2d]
+            
+            # Dessiner la face pleine
+            pygame.draw.polygon(screen, color, points_2d)
+            
+            # Optionnel : dessiner les contours des faces pour plus de définition
+            # Utiliser une couleur plus sombre pour les contours
+            contour_color = (max(0, intensity - 40), max(0, intensity - 40), max(0, intensity - 40))
+            pygame.draw.polygon(screen, contour_color, points_2d, 1)
+
     def draw_axes(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine les axes 3D pour référence"""
         origin = np.array([0, 0, 0])

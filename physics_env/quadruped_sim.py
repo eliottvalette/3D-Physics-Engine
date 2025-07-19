@@ -126,9 +126,9 @@ while running:
     screen.fill(BLACK)
     
     # Dessiner le monde 3D
-    ground.draw(screen, camera)
+    ground.draw_premium(screen, camera)
     ground.draw_axes(screen, camera)
-    quadruped.draw(screen, camera)
+    quadruped.draw_premium(screen, camera)
     
     # --- Interface utilisateur ---
     font = pygame.font.Font(None, 24)

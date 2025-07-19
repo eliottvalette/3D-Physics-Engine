@@ -1,6 +1,17 @@
 import numpy as np
 
-def create_body(length=4.0, width=6.0, height=1.0, y_offset=5.5):
+BODY_LENGTH = 4.0
+BODY_WIDTH = 6.0
+BODY_HEIGHT = 1.0
+UPPER_LEG_LENGTH = 0.8
+UPPER_LEG_WIDTH = 0.8
+UPPER_LEG_HEIGHT = 1.5
+LOWER_LEG_LENGTH = 0.6
+LOWER_LEG_WIDTH = 0.6
+LOWER_LEG_HEIGHT = 2.0
+Y_OFFSET = 5.5
+
+def create_body(length, width, height, y_offset):
     """
     Creates the body vertices with configurable dimensions
     Args:
@@ -29,7 +40,7 @@ def create_body(length=4.0, width=6.0, height=1.0, y_offset=5.5):
     
     return body_vertices
 
-def create_upper_legs(body_vertices, leg_length=0.6, leg_width=0.6, leg_height=1.5):
+def create_upper_legs(body_vertices, leg_length, leg_width, leg_height):
     """
     Creates the upper leg vertices positioned relative to the body
     Args:
@@ -45,7 +56,7 @@ def create_upper_legs(body_vertices, leg_length=0.6, leg_width=0.6, leg_height=1
     body_max_x = max(v[0] for v in body_vertices)
     body_min_z = min(v[2] for v in body_vertices)
     body_max_z = max(v[2] for v in body_vertices)
-    body_y = body_vertices[0][1]  # Bottom Y position
+    body_y = body_vertices[4][1]  # Top Y position
     
     # Calculate leg positions relative to body corners
     leg_positions = [
@@ -79,8 +90,8 @@ def create_upper_legs(body_vertices, leg_length=0.6, leg_width=0.6, leg_height=1
             leg_z_end = z_pos + leg_width/2
         
         # Y positions
-        leg_y_bottom = body_y
-        leg_y_top = body_y + leg_height
+        leg_y_top = body_y
+        leg_y_bottom = body_y - leg_height
         
         # Create 8 vertices for this leg
         leg_vertices = [
@@ -156,7 +167,7 @@ def calculate_elbow_positions(upper_legs):
     
     return elbow_positions
 
-def create_lower_legs(upper_legs, leg_length=0.4, leg_width=0.4, leg_height=2.0):
+def create_lower_legs(upper_legs, leg_length, leg_width, leg_height):
     """
     Creates the lower leg vertices positioned below the upper legs
     Args:
@@ -203,10 +214,10 @@ def create_lower_legs(upper_legs, leg_length=0.4, leg_width=0.4, leg_height=2.0)
     
     return lower_legs
 
-def create_quadruped_vertices(body_length=4.0, body_width=6.0, body_height=1.0,
-                             upper_leg_length=1.0, upper_leg_width=1.0, upper_leg_height=1.0,
-                             lower_leg_length=1.0, lower_leg_width=0.8, lower_leg_height=2.0,
-                             y_offset=5.5):
+def create_quadruped_vertices(body_length=BODY_LENGTH, body_width=BODY_WIDTH, body_height=BODY_HEIGHT,
+                             upper_leg_length=UPPER_LEG_LENGTH, upper_leg_width=UPPER_LEG_WIDTH, upper_leg_height=UPPER_LEG_HEIGHT,
+                             lower_leg_length=LOWER_LEG_LENGTH, lower_leg_width=LOWER_LEG_WIDTH, lower_leg_height=LOWER_LEG_HEIGHT,
+                             y_offset=Y_OFFSET):
     """
     Creates the complete quadruped with configurable dimensions
     Args:

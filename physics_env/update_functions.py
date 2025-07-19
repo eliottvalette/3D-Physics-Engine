@@ -359,6 +359,97 @@ def update_on_stairs(object: Cube3D, stairs_coordinates_flat: dict[int, list[tup
         # TODO:
         pass
 
+def calculate_quadruped_inertia_tensor(quadruped: Quadruped):
+    """
+    Calcule le tenseur d'inertie du quadruped en tenant compte de la masse relative
+    de chaque partie (body, upper legs, lower legs) et de leurs positions actuelles.
+    
+    Returns:
+        np.array: Tenseur d'inertie [I_xx, I_yy, I_zz] au centre de masse
+    """
+    # Masse totale du quadruped
+    total_mass = 1.0
+    
+    # Définir les masses relatives de chaque partie (basées sur le volume)
+    # Body: 4.0 * 6.0 * 1.0 = 24.0
+    # Upper legs: 4 * (1.0 * 1.0 * 1.0) = 4.0
+    # Lower legs: 4 * (1.0 * 0.8 * 2.0) = 6.4
+    # Total volume = 34.4
+    
+    body_volume = 4.0 * 6.0 * 1.0
+    upper_leg_volume = 4 * (1.0 * 1.0 * 1.0)
+    lower_leg_volume = 4 * (1.0 * 0.8 * 2.0)
+    total_volume = body_volume + upper_leg_volume + lower_leg_volume
+    
+    body_mass = total_mass * (body_volume / total_volume)
+    upper_leg_mass = total_mass * (upper_leg_volume / total_volume)
+    lower_leg_mass = total_mass * (lower_leg_volume / total_volume)
+    
+    # Masse par partie individuelle
+    single_upper_leg_mass = upper_leg_mass / 4
+    single_lower_leg_mass = lower_leg_mass / 4
+    
+    # Initialiser le tenseur d'inertie total
+    I_total = np.zeros(3)  # [I_xx, I_yy, I_zz]
+    
+    # 1. Tenseur d'inertie du body (cube)
+    body_length, body_width, body_height = 4.0, 6.0, 1.0
+    I_body_xx = (1/12) * body_mass * (body_height**2 + body_width**2)
+    I_body_yy = (1/12) * body_mass * (body_length**2 + body_width**2)
+    I_body_zz = (1/12) * body_mass * (body_length**2 + body_height**2)
+    
+    # Calculer le centre de masse du body dans le repère monde
+    body_center = quadruped.position  # Le body est centré sur la position du quadruped
+    
+    # Ajouter le tenseur d'inertie du body (théorème de Steiner)
+    I_total += np.array([I_body_xx, I_body_yy, I_body_zz])
+    
+    # 2. Tenseur d'inertie des upper legs
+    upper_leg_length, upper_leg_width, upper_leg_height = 1.0, 1.0, 1.0
+    I_upper_xx = (1/12) * single_upper_leg_mass * (upper_leg_height**2 + upper_leg_width**2)
+    I_upper_yy = (1/12) * single_upper_leg_mass * (upper_leg_length**2 + upper_leg_width**2)
+    I_upper_zz = (1/12) * single_upper_leg_mass * (upper_leg_length**2 + upper_leg_height**2)
+    
+    # Calculer les centres de masse des upper legs
+    for i in range(4):
+        # Utiliser les vertices des upper legs pour calculer leur centre
+        upper_leg_start = 8 + i * 8  # Les upper legs commencent après le body (8 vertices)
+        upper_leg_vertices = quadruped.rotated_vertices[upper_leg_start:upper_leg_start + 8]
+        
+        # Centre de masse de cette upper leg
+        upper_leg_center = np.mean(upper_leg_vertices, axis=0)
+        
+        # Distance du centre de masse de cette leg au centre de masse total
+        r = upper_leg_center - body_center
+        r_squared = np.dot(r, r)
+        
+        # Théorème de Steiner: I = I_cm + m * d²
+        I_total += np.array([I_upper_xx, I_upper_yy, I_upper_zz]) + single_upper_leg_mass * r_squared
+    
+    # 3. Tenseur d'inertie des lower legs
+    lower_leg_length, lower_leg_width, lower_leg_height = 1.0, 0.8, 2.0
+    I_lower_xx = (1/12) * single_lower_leg_mass * (lower_leg_height**2 + lower_leg_width**2)
+    I_lower_yy = (1/12) * single_lower_leg_mass * (lower_leg_length**2 + lower_leg_width**2)
+    I_lower_zz = (1/12) * single_lower_leg_mass * (lower_leg_length**2 + lower_leg_height**2)
+    
+    # Calculer les centres de masse des lower legs
+    for i in range(4):
+        # Utiliser les vertices des lower legs
+        lower_leg_start = 40 + i * 8  # Les lower legs commencent après les upper legs (8 + 4*8 = 40)
+        lower_leg_vertices = quadruped.rotated_vertices[lower_leg_start:lower_leg_start + 8]
+        
+        # Centre de masse de cette lower leg
+        lower_leg_center = np.mean(lower_leg_vertices, axis=0)
+        
+        # Distance du centre de masse de cette leg au centre de masse total
+        r = lower_leg_center - body_center
+        r_squared = np.dot(r, r)
+        
+        # Théorème de Steiner: I = I_cm + m * d²
+        I_total += np.array([I_lower_xx, I_lower_yy, I_lower_zz]) + single_lower_leg_mass * r_squared
+    
+    return I_total
+
 def update_quadruped(quadruped: Quadruped):
     """
     Collision avancée entre le quadruped et le sol avec gestion améliorée des rebonds.
@@ -370,22 +461,8 @@ def update_quadruped(quadruped: Quadruped):
     # Constantes physiques
     mass = 1.0
     
-    # Calculer le tenseur d'inertie à partir des vertices
-    vertices = quadruped.rotated_vertices
-    x_coords = [v[0] for v in vertices]
-    y_coords = [v[1] for v in vertices]
-    z_coords = [v[2] for v in vertices]
-    
-    x_range = max(x_coords) - min(x_coords)
-    y_range = max(y_coords) - min(y_coords)
-    z_range = max(z_coords) - min(z_coords)
-    
-    # Tenseur d'inertie approximatif basé sur les dimensions calculées
-    I_xx = (1/12) * mass * (y_range**2 + z_range**2)
-    I_yy = (1/12) * mass * (x_range**2 + z_range**2)
-    I_zz = (1/12) * mass * (x_range**2 + y_range**2)
-    
-    I = np.array([I_xx, I_yy, I_zz])
+    # Calculer le tenseur d'inertie précis basé sur la masse relative de chaque partie
+    I = calculate_quadruped_inertia_tensor(quadruped)
 
     # Appliquer la gravité au centre de masse
     quadruped.velocity += GRAVITY * DT
