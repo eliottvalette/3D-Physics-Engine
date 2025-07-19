@@ -73,8 +73,35 @@ while running:
     if keys[K_h]:
         print(quadruped.get_vertices())
     
+    # --- Contrôles des articulations ---
+    # Épaules (Front Right, Front Left, Back Right, Back Left)
+    if keys[K_1]:  # Front Right shoulder
+        quadruped.adjust_shoulder_angle(0, 0.05)
+    if keys[K_2]:  # Front Left shoulder
+        quadruped.adjust_shoulder_angle(1, 0.05)
+    if keys[K_3]:  # Back Right shoulder
+        quadruped.adjust_shoulder_angle(2, 0.05)
+    if keys[K_4]:  # Back Left shoulder
+        quadruped.adjust_shoulder_angle(3, 0.05)
+    
+    # Coudes (Front Right, Front Left, Back Right, Back Left)
+    if keys[K_5]:  # Front Right elbow
+        quadruped.adjust_elbow_angle(0, 0.05)
+    if keys[K_6]:  # Front Left elbow
+        quadruped.adjust_elbow_angle(1, 0.05)
+    if keys[K_7]:  # Back Right elbow
+        quadruped.adjust_elbow_angle(2, 0.05)
+    if keys[K_8]:  # Back Left elbow
+        quadruped.adjust_elbow_angle(3, 0.05)
+    
+    # Reset des articulations
+    if keys[K_r]:
+        quadruped.shoulder_angles = np.array([0.0, 0.0, 0.0, 0.0])
+        quadruped.elbow_angles = np.array([0.0, 0.0, 0.0, 0.0])
+        quadruped.rotated_vertices = quadruped.get_vertices()
+    
     # --- Mise à jour physique ---
-    # temp_polygon = update_joined_objects([body] + upper_legs + lower_legs, joints)
+    update_quadruped(quadruped)
     
     # --- Rendu ---
     screen.fill(BLACK)
@@ -91,14 +118,25 @@ while running:
     pos_text = f"Position: ({quadruped.position[0]:.2f}, {quadruped.position[1]:.2f}, {quadruped.position[2]:.2f})"
     vel_text = f"Vitesse: ({quadruped.velocity[0]:.2f}, {quadruped.velocity[1]:.2f}, {quadruped.velocity[2]:.2f})"
     cam_text = f"Caméra: ({camera.position[0]:.1f}, {camera.position[1]:.1f}, {camera.position[2]:.1f})"
+    rot_text = f"Rotation: ({quadruped.rotation[0]:.2f}, {quadruped.rotation[1]:.2f}, {quadruped.rotation[2]:.2f})"
+    
+    # Informations des articulations
+    shoulder_text = f"Épaules: FR({quadruped.shoulder_angles[0]:.2f}) FL({quadruped.shoulder_angles[1]:.2f}) BR({quadruped.shoulder_angles[2]:.2f}) BL({quadruped.shoulder_angles[3]:.2f})"
+    elbow_text = f"Coudes: FR({quadruped.elbow_angles[0]:.2f}) FL({quadruped.elbow_angles[1]:.2f}) BR({quadruped.elbow_angles[2]:.2f}) BL({quadruped.elbow_angles[3]:.2f})"
     
     pos_surface = font.render(pos_text, True, WHITE)
     vel_surface = font.render(vel_text, True, WHITE)
     cam_surface = font.render(cam_text, True, WHITE)
+    rot_surface = font.render(rot_text, True, WHITE)
+    shoulder_surface = font.render(shoulder_text, True, WHITE)
+    elbow_surface = font.render(elbow_text, True, WHITE)
     
     screen.blit(pos_surface, (10, 10))
     screen.blit(vel_surface, (10, 35))
     screen.blit(cam_surface, (10, 60))
+    screen.blit(rot_surface, (10, 85))
+    screen.blit(shoulder_surface, (10, 110))
+    screen.blit(elbow_surface, (10, 135))
     
     # Instructions
     instructions = [
@@ -107,6 +145,9 @@ while running:
         "AE - Monter/Descendre caméra", 
         "Flèches - Rotation caméra",
         "Espace - Reset quadruped",
+        "R - Reset articulations",
+        "1-4 - Épaules (FR,FL,BR,BL)",
+        "5-8 - Coudes (FR,FL,BR,BL)",
         "H - Afficher les sommets",
         "Échap - Quitter"
     ]

@@ -24,75 +24,200 @@ class Quadruped:
         self.vertices = vertices.copy()
         self.vectrices_dict = copy.deepcopy(vectrices_dict)
 
+        # Articulations (épaules et coudes) - angles en radians
+        # Épaules: 0=Front Right, 1=Front Left, 2=Back Right, 3=Back Left
+        self.shoulder_angles = np.array([0.0, 0.0, 0.0, 0.0])
+        # Coudes: 0=Front Right, 1=Front Left, 2=Back Right, 3=Back Left
+        self.elbow_angles = np.array([0.0, 0.0, 0.0, 0.0])
+        
+        # Angles initiaux
+        self.initial_shoulder_angles = self.shoulder_angles.copy()
+        self.initial_elbow_angles = self.elbow_angles.copy()
+
         self.rotated_vertices = self.get_vertices()
     
     def reset(self):
         self.position = self.initial_position.copy()
         self.vertices = self.initial_vertices.copy()
-        self.velocity = self.initial_velocity.copy() * np.random.rand(3)
-        self.rotation = self.initial_rotation.copy() * np.random.rand(3)
-        self.angular_velocity = self.initial_angular_velocity.copy() * np.random.rand(3)
+        self.velocity = self.initial_velocity.copy() + np.random.rand(3)
+        self.rotation = self.initial_rotation.copy() + np.random.rand(3)
+        self.angular_velocity = self.initial_angular_velocity.copy() + np.random.rand(3)
+        self.shoulder_angles = self.initial_shoulder_angles.copy()
+        self.elbow_angles = self.initial_elbow_angles.copy()
+        self.rotated_vertices = self.get_vertices()
     
     def get_vertices(self):
-        """Returns the current vertices with position and rotation applied"""
+        """Retourne les vertices du quadruped dans le repère monde avec transformations appliquées"""
+        # Appliquer les rotations aux sommets
         rotated_vertices = []
         
-        for part in self.vertices:
-            part_vertices = []
-            for vertex in part:
-                # Apply rotation
-                rotated_vertex = self.apply_rotation(vertex)
-                # Apply position offset
-                final_vertex = rotated_vertex + self.position
-                part_vertices.append(final_vertex)
-            rotated_vertices.append(part_vertices)
+        # Structure des vertices: [body(8), upper_leg_0(8), upper_leg_1(8), upper_leg_2(8), upper_leg_3(8), 
+        #                          lower_leg_0(8), lower_leg_1(8), lower_leg_2(8), lower_leg_3(8)]
+        
+        for i, vertex in enumerate(self.vertices):
+            # Déterminer à quelle partie appartient ce vertex
+            part_index = i // 8  # 0=body, 1-4=upper_legs, 5-8=lower_legs
+            local_vertex_index = i % 8
+            
+            # Appliquer les transformations d'articulation selon la partie
+            transformed_vertex = vertex.copy()
+            
+            if part_index == 0:  # Body - pas de transformation d'articulation
+                pass
+            elif 1 <= part_index <= 4:  # Upper legs - transformation d'épaule
+                leg_index = part_index - 1
+                shoulder_angle = self.shoulder_angles[leg_index]
+                
+                # Calculer le centre de rotation de l'épaule (point de connexion avec le body)
+                # Approximation: centre de la face de connexion
+                shoulder_center = np.array([0.0, 4.5, 0.0])  # Centre approximatif
+                if leg_index == 0:  # Front right
+                    shoulder_center = np.array([1.0, 4.5, 2.5])
+                elif leg_index == 1:  # Front left
+                    shoulder_center = np.array([1.0, 4.5, -2.5])
+                elif leg_index == 2:  # Back right
+                    shoulder_center = np.array([-1.5, 4.5, 2.5])
+                elif leg_index == 3:  # Back left
+                    shoulder_center = np.array([-1.5, 4.5, -2.5])
+                
+                # Appliquer la rotation d'épaule autour de l'axe Z
+                relative_pos = transformed_vertex - shoulder_center
+                cos_shoulder = math.cos(shoulder_angle)
+                sin_shoulder = math.sin(shoulder_angle)
+                x_new = relative_pos[0] * cos_shoulder - relative_pos[1] * sin_shoulder
+                y_new = relative_pos[0] * sin_shoulder + relative_pos[1] * cos_shoulder
+                transformed_vertex = shoulder_center + np.array([x_new, y_new, relative_pos[2]])
+                
+            elif 5 <= part_index <= 8:  # Lower legs - transformation de coude
+                leg_index = part_index - 5
+                elbow_angle = self.elbow_angles[leg_index]
+                
+                # Calculer le centre de rotation du coude (point de connexion avec upper leg)
+                elbow_center = np.array([0.0, 4.0, 0.0])  # Centre approximatif
+                if leg_index == 0:  # Front right
+                    elbow_center = np.array([1.5, 4.0, 2.5])
+                elif leg_index == 1:  # Front left
+                    elbow_center = np.array([1.5, 4.0, -2.5])
+                elif leg_index == 2:  # Back right
+                    elbow_center = np.array([-1.5, 4.0, 2.5])
+                elif leg_index == 3:  # Back left
+                    elbow_center = np.array([-1.5, 4.0, -2.5])
+                
+                # Appliquer la rotation de coude autour de l'axe Z
+                relative_pos = transformed_vertex - elbow_center
+                cos_elbow = math.cos(elbow_angle)
+                sin_elbow = math.sin(elbow_angle)
+                x_new = relative_pos[0] * cos_elbow - relative_pos[1] * sin_elbow
+                y_new = relative_pos[0] * sin_elbow + relative_pos[1] * cos_elbow
+                transformed_vertex = elbow_center + np.array([x_new, y_new, relative_pos[2]])
+            
+            # Appliquer les rotations globales du quadruped
+            # Rotation autour de l'axe X (pitch)
+            cos_x = math.cos(self.rotation[0])
+            sin_x = math.sin(self.rotation[0])
+            y1 = transformed_vertex[1] * cos_x - transformed_vertex[2] * sin_x
+            z1 = transformed_vertex[1] * sin_x + transformed_vertex[2] * cos_x
+            rotated_vertex = np.array([transformed_vertex[0], y1, z1])
+            
+            # Rotation autour de l'axe Y (yaw)
+            cos_y = math.cos(self.rotation[1])
+            sin_y = math.sin(self.rotation[1])
+            x2 = rotated_vertex[0] * cos_y + rotated_vertex[2] * sin_y
+            z2 = -rotated_vertex[0] * sin_y + rotated_vertex[2] * cos_y
+            rotated_vertex = np.array([x2, rotated_vertex[1], z2])
+            
+            # Rotation autour de l'axe Z (roll)
+            cos_z = math.cos(self.rotation[2])
+            sin_z = math.sin(self.rotation[2])
+            x3 = rotated_vertex[0] * cos_z - rotated_vertex[1] * sin_z
+            y3 = rotated_vertex[0] * sin_z + rotated_vertex[1] * cos_z
+            rotated_vertex = np.array([x3, y3, rotated_vertex[2]])
+            
+            # Ajouter la position du quadruped
+            final_vertex = self.position + rotated_vertex
+            rotated_vertices.append(final_vertex)
         
         return rotated_vertices
     
-    def apply_rotation(self, vertex):
-        """Apply rotation matrix to a vertex"""
-        # Create rotation matrices for each axis
-        rx = np.array([
-            [1, 0, 0],
-            [0, np.cos(self.rotation[0]), -np.sin(self.rotation[0])],
-            [0, np.sin(self.rotation[0]), np.cos(self.rotation[0])]
-        ])
-        
-        ry = np.array([
-            [np.cos(self.rotation[1]), 0, np.sin(self.rotation[1])],
-            [0, 1, 0],
-            [-np.sin(self.rotation[1]), 0, np.cos(self.rotation[1])]
-        ])
-        
-        rz = np.array([
-            [np.cos(self.rotation[2]), -np.sin(self.rotation[2]), 0],
-            [np.sin(self.rotation[2]), np.cos(self.rotation[2]), 0],
-            [0, 0, 1]
-        ])
-        
-        # Combine rotations
-        rotation_matrix = rz @ ry @ rx
-        return rotation_matrix @ vertex
+    def get_vectrices_dict(self):
+        return self.vectrices_dict
 
+    def set_shoulder_angle(self, leg_index, angle):
+        """Définit l'angle de l'épaule pour une patte donnée (0-3)"""
+        if 0 <= leg_index <= 3:
+            self.shoulder_angles[leg_index] = angle
+            self.rotated_vertices = self.get_vertices()
+    
+    def set_elbow_angle(self, leg_index, angle):
+        """Définit l'angle du coude pour une patte donnée (0-3)"""
+        if 0 <= leg_index <= 3:
+            self.elbow_angles[leg_index] = angle
+            self.rotated_vertices = self.get_vertices()
+    
+    def adjust_shoulder_angle(self, leg_index, delta_angle):
+        """Ajuste l'angle de l'épaule pour une patte donnée"""
+        if 0 <= leg_index <= 3:
+            self.shoulder_angles[leg_index] += delta_angle
+            self.rotated_vertices = self.get_vertices()
+    
+    def adjust_elbow_angle(self, leg_index, delta_angle):
+        """Ajuste l'angle du coude pour une patte donnée"""
+        if 0 <= leg_index <= 3:
+            self.elbow_angles[leg_index] += delta_angle
+            self.rotated_vertices = self.get_vertices()
+    
     def draw(self, screen: pygame.Surface, camera: Camera3D):
-        """Dessine le quadruped 3D avec projection et profondeur"""
-        self.rotated_vertices = self.get_vertices()
+        """Dessine le quadruped 3D avec projection et profondeur"""        
+        # Projeter tous les sommets
+        projected_vertices = []
+        for vertex in self.rotated_vertices:
+            projected = camera.project_3d_to_2d(vertex)
+            if projected:  # projected peut etre None si le point est derrière la caméra
+                projected_vertices.append(projected)
         
-        # Draw each part of the quadruped
-        for part_vertices in self.rotated_vertices:
-            # Project vertices to 2D
-            projected_vertices = []
-            for vertex in part_vertices:
-                projected = camera.project_point(vertex)
-                if projected is not None:
-                    projected_vertices.append(projected)
+        if len(projected_vertices) < 8:
+            return  # Le quadruped est partiellement hors champ de vision, on ne dessine pas
+        
+        # Définir les couleurs pour chaque partie
+        colors = [
+            (255, 255, 255),  # Body (white)
+            (0, 0, 255),      # Upper leg 0 - Front right (blue)
+            (255, 0, 0),      # Upper leg 1 - Front left (red)
+            (0, 255, 0),      # Upper leg 2 - Back right (green)
+            (255, 255, 255),  # Upper leg 3 - Back left (white)
+            (0, 0, 255),      # Lower leg 0 - Front right (blue)
+            (255, 0, 0),      # Lower leg 1 - Front left (red)
+            (0, 255, 0),      # Lower leg 2 - Back right (green)
+            (255, 255, 255)   # Lower leg 3 - Back left (white)
+        ]
+        
+        # Dessiner chaque partie du quadruped (body + 8 legs)
+        # Chaque partie a 8 vertices, donc on dessine par groupes de 8
+        parts_per_leg = 8
+        total_parts = len(projected_vertices) // parts_per_leg
+        
+        for part_idx in range(total_parts):
+            start_idx = part_idx * parts_per_leg
+            end_idx = start_idx + parts_per_leg
             
-            # Draw the part if we have enough vertices
-            if len(projected_vertices) >= 3:
-                # Draw as a polygon (assuming vertices form a cube face)
-                if len(projected_vertices) == 4:
-                    pygame.draw.polygon(screen, self.color, projected_vertices, 1)
-                else:
-                    # Draw as individual points if not a complete face
-                    for point in projected_vertices:
-                        pygame.draw.circle(screen, self.color, (int(point[0]), int(point[1])), 2)
+            if end_idx <= len(projected_vertices):
+                part_vertices = projected_vertices[start_idx:end_idx]
+                part_color = colors[part_idx] if part_idx < len(colors) else self.color
+                
+                # Définir les arêtes pour chaque partie (cube)
+                edges = [
+                    (0, 1), (1, 3), (3, 2), (2, 0),  # Face avant
+                    (4, 5), (5, 7), (7, 6), (6, 4),  # Face arrière
+                    (0, 4), (1, 5), (2, 6), (3, 7)   # Arêtes verticales
+                ]
+                
+                # Dessiner les arêtes de cette partie
+                for edge in edges:
+                    if edge[0] < len(part_vertices) and edge[1] < len(part_vertices):
+                        start = part_vertices[edge[0]][:2]
+                        end = part_vertices[edge[1]][:2]
+                        
+                        # Vérifier que les coordonnées sont valides
+                        if (0 <= start[0] < WINDOW_WIDTH and 0 <= start[1] < WINDOW_HEIGHT and
+                            0 <= end[0] < WINDOW_WIDTH and 0 <= end[1] < WINDOW_HEIGHT):
+                            pygame.draw.line(screen, part_color, start, end, 2)

@@ -6,6 +6,7 @@ import random
 from config import DT, GRAVITY
 from cube import Cube3D
 from joint import Joint
+from quadruped import Quadruped
 
 def update_ground_only_simple(object: Cube3D):
     # Mettre à jour les sommets du cube
@@ -357,3 +358,100 @@ def update_on_stairs(object: Cube3D, stairs_coordinates_flat: dict[int, list[tup
         """
         # TODO:
         pass
+
+def update_quadruped(quadruped: Quadruped):
+    """
+    Collision avancée entre le quadruped et le sol.
+    """
+
+    # Mettre à jour les sommets du cube
+    quadruped.rotated_vertices = quadruped.get_vertices()
+
+    # Constantes physiques
+    mass = 1.0
+    
+    # Calculer le tenseur d'inertie à partir des vertices
+    # Approximation : traiter chaque partie comme un petit cube
+    I_xx = 0.0
+    I_yy = 0.0
+    I_zz = 0.0
+    
+    # Calculer les moments d'inertie approximatifs basés sur la distribution des vertices
+    vertices = quadruped.rotated_vertices
+    # Calculer les dimensions approximatives du quadruped
+    x_coords = [v[0] for v in vertices]
+    y_coords = [v[1] for v in vertices]
+    z_coords = [v[2] for v in vertices]
+    
+    x_range = max(x_coords) - min(x_coords)
+    y_range = max(y_coords) - min(y_coords)
+    z_range = max(z_coords) - min(z_coords)
+    
+    # Tenseur d'inertie approximatif basé sur les dimensions calculées
+    I_xx = (1/12) * mass * (y_range**2 + z_range**2)
+    I_yy = (1/12) * mass * (x_range**2 + z_range**2)
+    I_zz = (1/12) * mass * (x_range**2 + y_range**2)
+    
+    I = np.array([I_xx, I_yy, I_zz])
+
+    # Appliquer la gravité au centre de masse
+    quadruped.velocity += GRAVITY * DT
+
+    # Mise à jour de la position et de la rotation
+    quadruped.position += quadruped.velocity * DT
+    quadruped.rotation += quadruped.angular_velocity * DT
+    
+    # Recalculer les sommets après mise à jour
+    quadruped.rotated_vertices = quadruped.get_vertices()
+    
+    # Trier les sommets du plus proche du sol au plus loin
+    sorted_vertices = sorted(quadruped.rotated_vertices, key=lambda v: v[1])
+    # is_close_to_ground si le plus proche <= 0.03
+    is_close_to_ground = sorted_vertices[0][1] <= 0.03
+    # is_on_ground si au moins 12 sommets sont <= 0.03
+    is_on_ground = sorted_vertices[12][1] <= 0.03
+
+    # Si le cube est au sol, appliquer une stabilisation plus agressive
+    if is_close_to_ground :
+        # Réduire drastiquement les vitesses horizontales et angulaires
+        quadruped.velocity[0] *= 0.95
+        quadruped.velocity[2] *= 0.95
+        quadruped.angular_velocity *= 0.95
+    
+    if is_on_ground:
+        # Réduire drastiquement les vitesses horizontales et angulaires
+        quadruped.velocity[0] *= 0.2
+        quadruped.velocity[2] *= 0.2
+        quadruped.angular_velocity *= 0.1  # Réduction très forte quand sur le sol
+
+        # Réduire drastiquement la vitesse verticale
+        quadruped.velocity[1] *= 0.2
+
+    # Pour chaque sommet, vérifier la collision avec le sol
+    for vertex in quadruped.rotated_vertices:
+        if vertex[1] < 0:
+            # Position du sommet par rapport au centre de masse (c'est ce qui permet de casser la symétrie de la force d'impulsion)
+            relative_position = vertex - quadruped.position
+            # Vitesse du sommet (translation + rotation)
+            vertex_velocity = quadruped.velocity + np.cross(quadruped.angular_velocity, relative_position)
+            # Si le sommet descend, on annule la composante verticale
+            if vertex_velocity[1] < 0:
+                # Impulsion nécessaire pour annuler la vitesse verticale
+                normal = np.array([0, 1, 0])  # normale du sol
+                relative_velocity = np.dot(vertex_velocity, normal)
+                # Calcul de l'impulsion scalaire
+                r_cross_n = np.cross(relative_position, normal)
+                denom = (1/mass) + np.dot(normal, np.cross(np.divide(r_cross_n, I, out=np.zeros_like(r_cross_n), where=I!=0), relative_position))
+                if denom == 0:
+                    continue
+                scalar_impulse = -relative_velocity / denom
+                # Appliquer l'impulsion au centre de masse
+                quadruped.velocity += (scalar_impulse * normal) / mass
+                # Appliquer l'impulsion angulaire
+                quadruped.angular_velocity += np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0)
+            
+            # Replacer le sommet sur le sol en ajustant la position du centre de masse
+            quadruped.position[1] = max(quadruped.position[1], -relative_position[1])
+
+    # Optionnel : limiter la rotation pour éviter les dérives numériques
+    quadruped.rotation = np.mod(quadruped.rotation, 2 * np.pi)

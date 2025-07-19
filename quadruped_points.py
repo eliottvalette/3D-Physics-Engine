@@ -19,60 +19,60 @@ def create_quadruped_vertices():
     
     # Upper leg vertices (4 legs)
     upper_leg_0 = [  # Front right leg
-        np.array([2. , 4.5, 2.5]), np.array([2. , 4.5, 3.5]), 
-        np.array([2. , 5.5, 2.5]), np.array([2. , 5.5, 3.5]), 
-        np.array([3. , 4.5, 2.5]), np.array([3. , 4.5, 3.5]), 
-        np.array([3. , 5.5, 2.5]), np.array([3. , 5.5, 3.5])
+        np.array([1. , 4., 2.]), np.array([1. , 4., 3.]), 
+        np.array([1. , 5., 2.]), np.array([1. , 5., 3.]), 
+        np.array([2. , 4., 2.]), np.array([2. , 4., 3.]), 
+        np.array([2. , 5., 2.]), np.array([2. , 5., 3.])
     ]
     
     upper_leg_1 = [  # Front left leg
-        np.array([ 2. ,  4.5, -3.5]), np.array([ 2. ,  4.5, -2.5]), 
-        np.array([ 2. ,  5.5, -3.5]), np.array([ 2. ,  5.5, -2.5]), 
-        np.array([ 3. ,  4.5, -3.5]), np.array([ 3. ,  4.5, -2.5]), 
-        np.array([ 3. ,  5.5, -3.5]), np.array([ 3. ,  5.5, -2.5])
+        np.array([ 1. ,  4., -3.]), np.array([ 1. ,  4., -2.]), 
+        np.array([ 1. ,  5., -3.]), np.array([ 1. ,  5., -2.]), 
+        np.array([ 2. ,  4., -3.]), np.array([ 2. ,  4., -2.]), 
+        np.array([ 2. ,  5., -3.]), np.array([ 2. ,  5., -2.])
     ]
     
     upper_leg_2 = [  # Back right leg
-        np.array([-2. ,  4.5,  2.5]), np.array([-2. ,  4.5,  3.5]), 
-        np.array([-2. ,  5.5,  2.5]), np.array([-2. ,  5.5,  3.5]), 
-        np.array([-1. ,  4.5,  2.5]), np.array([-1. ,  4.5,  3.5]), 
-        np.array([-1. ,  5.5,  2.5]), np.array([-1. ,  5.5,  3.5])
+        np.array([-2. ,  4.,  2.]), np.array([-2. ,  4.,  3.]), 
+        np.array([-2. ,  5.,  2.]), np.array([-2. ,  5.,  3.]), 
+        np.array([-1. ,  4.,  2.]), np.array([-1. ,  4.,  3.]), 
+        np.array([-1. ,  5.,  2.]), np.array([-1. ,  5.,  3.])
     ]
     
     upper_leg_3 = [  # Back left leg
-        np.array([-2. ,  4.5, -3.5]), np.array([-2. ,  4.5, -2.5]), 
-        np.array([-2. ,  5.5, -3.5]), np.array([-2. ,  5.5, -2.5]), 
-        np.array([-1. ,  4.5, -3.5]), np.array([-1. ,  4.5, -2.5]), 
-        np.array([-1. ,  5.5, -3.5]), np.array([-1. ,  5.5, -2.5])
+        np.array([-2. ,  4., -3.]), np.array([-2. ,  4., -2.]), 
+        np.array([-2. ,  5., -3.]), np.array([-2. ,  5., -2.]), 
+        np.array([-1. ,  4., -3.]), np.array([-1. ,  4., -2.]), 
+        np.array([-1. ,  5., -3.]), np.array([-1. ,  5., -2.])
     ]
     
     # Lower leg vertices (4 legs)
     lower_leg_0 = [  # Front right leg
-        np.array([1.5, 3. , 2. ]), np.array([1.5, 3. , 3. ]), 
-        np.array([1.5, 5. , 2. ]), np.array([1.5, 5. , 3. ]), 
-        np.array([2.5, 3. , 2. ]), np.array([2.5, 3. , 3. ]), 
-        np.array([2.5, 5. , 2. ]), np.array([2.5, 5. , 3. ])
+        np.array([1., 2. , 2. ]), np.array([1., 2. , 3. ]), 
+        np.array([1., 4. , 2. ]), np.array([1., 4. , 3. ]), 
+        np.array([2., 2. , 2. ]), np.array([2., 2. , 3. ]), 
+        np.array([2., 4. , 2. ]), np.array([2., 4. , 3. ])
     ]
     
     lower_leg_1 = [  # Front left leg
-        np.array([ 1.5,  3. , -3. ]), np.array([ 1.5,  3. , -2. ]), 
-        np.array([ 1.5,  5. , -3. ]), np.array([ 1.5,  5. , -2. ]), 
-        np.array([ 2.5,  3. , -3. ]), np.array([ 2.5,  3. , -2. ]), 
-        np.array([ 2.5,  5. , -3. ]), np.array([ 2.5,  5. , -2. ])
+        np.array([ 1.,  2. , -3. ]), np.array([ 1.,  2. , -2. ]), 
+        np.array([ 1.,  4. , -3. ]), np.array([ 1.,  4. , -2. ]), 
+        np.array([ 2.,  2. , -3. ]), np.array([ 2.,  2. , -2. ]), 
+        np.array([ 2.,  4. , -3. ]), np.array([ 2.,  4. , -2. ])
     ]
     
     lower_leg_2 = [  # Back right leg
-        np.array([-1.5,  3. ,  2. ]), np.array([-1.5,  3. ,  3. ]), 
-        np.array([-1.5,  5. ,  2. ]), np.array([-1.5,  5. ,  3. ]), 
-        np.array([-0.5,  3. ,  2. ]), np.array([-0.5,  3. ,  3. ]), 
-        np.array([-0.5,  5. ,  2. ]), np.array([-0.5,  5. ,  3. ])
+        np.array([-2.,  2. ,  2. ]), np.array([-2.,  2. ,  3. ]), 
+        np.array([-2.,  4. ,  2. ]), np.array([-2.,  4. ,  3. ]), 
+        np.array([-1.,  2. ,  2. ]), np.array([-1.,  2. ,  3. ]), 
+        np.array([-1.,  4. ,  2. ]), np.array([-1.,  4. ,  3. ])
     ]
     
     lower_leg_3 = [  # Back left leg
-        np.array([-1.5,  3. , -3. ]), np.array([-1.5,  3. , -2. ]), 
-        np.array([-1.5,  5. , -3. ]), np.array([-1.5,  5. , -2. ]), 
-        np.array([-0.5,  3. , -3. ]), np.array([-0.5,  3. , -2. ]), 
-        np.array([-0.5,  5. , -3. ]), np.array([-0.5,  5. , -2. ])
+        np.array([-2.,  2. , -3. ]), np.array([-2.,  2. , -2. ]), 
+        np.array([-2.,  4. , -3. ]), np.array([-2.,  4. , -2. ]), 
+        np.array([-1.,  2. , -3. ]), np.array([-1.,  2. , -2. ]), 
+        np.array([-1.,  4. , -3. ]), np.array([-1.,  4. , -2. ])
     ]
     
     # Group all parts
