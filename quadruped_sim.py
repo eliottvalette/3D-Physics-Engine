@@ -19,10 +19,13 @@ clock = pygame.time.Clock()
 # --- Objets du monde ---
 camera = Camera3D()
 ground = Ground(size=20)
+
+# Créer le quadruped avec les positions d'épaules calculées
+quadruped_vertices_dict = create_quadruped_vertices()
 quadruped = Quadruped(
     position=np.array([0.0, 5.5, 0.0]),
     vertices=get_quadruped_vertices(),
-    vectrices_dict=create_quadruped_vertices()
+    vectrices_dict=quadruped_vertices_dict
 )
 
 # --- Contrôles caméra ---
@@ -75,27 +78,43 @@ while running:
     
     # --- Contrôles des articulations ---
     # Épaules (Front Right, Front Left, Back Right, Back Left)
-    if keys[K_1]:  # Front Right shoulder
+    if keys[K_r]:  # Front Right shoulder
         quadruped.adjust_shoulder_angle(0, 0.05)
-    if keys[K_2]:  # Front Left shoulder
+    if keys[K_f]:  # Front Right shoulder
+        quadruped.adjust_shoulder_angle(0, -0.05)
+    if keys[K_t]:  # Front Left shoulder
         quadruped.adjust_shoulder_angle(1, 0.05)
-    if keys[K_3]:  # Back Right shoulder
+    if keys[K_g]:  # Front Left shoulder
+        quadruped.adjust_shoulder_angle(1, -0.05)
+    if keys[K_y]:  # Back Right shoulder
         quadruped.adjust_shoulder_angle(2, 0.05)
-    if keys[K_4]:  # Back Left shoulder
+    if keys[K_h]:  # Back Right shoulder
+        quadruped.adjust_shoulder_angle(2, -0.05)
+    if keys[K_u]:  # Back Left shoulder
         quadruped.adjust_shoulder_angle(3, 0.05)
+    if keys[K_j]:  # Back Left shoulder
+        quadruped.adjust_shoulder_angle(3, -0.05)
     
     # Coudes (Front Right, Front Left, Back Right, Back Left)
-    if keys[K_5]:  # Front Right elbow
+    if keys[K_1]:  # Front Right elbow
         quadruped.adjust_elbow_angle(0, 0.05)
-    if keys[K_6]:  # Front Left elbow
+    if keys[K_2]:  # Front Right elbow
+        quadruped.adjust_elbow_angle(0, -0.05)
+    if keys[K_3]:  # Front Left elbow
         quadruped.adjust_elbow_angle(1, 0.05)
-    if keys[K_7]:  # Back Right elbow
+    if keys[K_4]:  # Front Left elbow
+        quadruped.adjust_elbow_angle(1, -0.05)
+    if keys[K_5]:  # Back Right elbow
         quadruped.adjust_elbow_angle(2, 0.05)
-    if keys[K_8]:  # Back Left elbow
+    if keys[K_6]:  # Back Right elbow
+        quadruped.adjust_elbow_angle(2, -0.05)
+    if keys[K_7]:  # Back Left elbow
         quadruped.adjust_elbow_angle(3, 0.05)
+    if keys[K_8]:  # Back Left elbow
+        quadruped.adjust_elbow_angle(3, -0.05)
     
     # Reset des articulations
-    if keys[K_r]:
+    if keys[K_b]:
         quadruped.shoulder_angles = np.array([0.0, 0.0, 0.0, 0.0])
         quadruped.elbow_angles = np.array([0.0, 0.0, 0.0, 0.0])
         quadruped.rotated_vertices = quadruped.get_vertices()

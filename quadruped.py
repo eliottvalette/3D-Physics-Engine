@@ -23,6 +23,10 @@ class Quadruped:
         self.angular_velocity = np.array([0.0, 0.0, 0.0])
         self.vertices = vertices.copy()
         self.vectrices_dict = copy.deepcopy(vectrices_dict)
+        
+        # Get shoulder and elbow positions from vectrices_dict if available
+        self.shoulder_positions = vectrices_dict.get('shoulder_positions', []) if vectrices_dict else []
+        self.elbow_positions = vectrices_dict.get('elbow_positions', []) if vectrices_dict else []
 
         # Articulations (épaules et coudes) - angles en radians
         # Épaules: 0=Front Right, 1=Front Left, 2=Back Right, 3=Back Left
@@ -57,7 +61,6 @@ class Quadruped:
         for i, vertex in enumerate(self.vertices):
             # Déterminer à quelle partie appartient ce vertex
             part_index = i // 8  # 0=body, 1-4=upper_legs, 5-8=lower_legs
-            local_vertex_index = i % 8
             
             # Appliquer les transformations d'articulation selon la partie
             transformed_vertex = vertex.copy()
@@ -68,16 +71,8 @@ class Quadruped:
                 leg_index = part_index - 1
                 shoulder_angle = self.shoulder_angles[leg_index]
                 
-                # Calculer le centre de rotation de l'épaule (point de connexion avec le body)
-                shoulder_center = np.array([0.0, 4.5, 0.0])  # Centre approximatif
-                if leg_index == 0:  # Front right
-                    shoulder_center = np.array([1.0, 4.5, 2.5])
-                elif leg_index == 1:  # Front left
-                    shoulder_center = np.array([1.0, 4.5, -2.5])
-                elif leg_index == 2:  # Back right
-                    shoulder_center = np.array([-1.5, 4.5, 2.5])
-                elif leg_index == 3:  # Back left
-                    shoulder_center = np.array([-1.5, 4.5, -2.5])
+                # Utiliser la position d'épaule calculée dynamiquement
+                shoulder_center = self.shoulder_positions[leg_index]
                 
                 # Appliquer la rotation d'épaule autour de l'axe X
                 relative_pos = transformed_vertex - shoulder_center
@@ -93,15 +88,7 @@ class Quadruped:
                 elbow_angle = self.elbow_angles[leg_index]
                 
                 # 1. D'abord appliquer la rotation d'épaule (même que pour upper leg)
-                shoulder_center = np.array([0.0, 4.5, 0.0])  # Centre approximatif
-                if leg_index == 0:  # Front right
-                    shoulder_center = np.array([1.0, 4.5, 2.5])
-                elif leg_index == 1:  # Front left
-                    shoulder_center = np.array([1.0, 4.5, -2.5])
-                elif leg_index == 2:  # Back right
-                    shoulder_center = np.array([-1.5, 4.5, 2.5])
-                elif leg_index == 3:  # Back left
-                    shoulder_center = np.array([-1.5, 4.5, -2.5])
+                shoulder_center = self.shoulder_positions[leg_index]
                 
                 # Appliquer la rotation d'épaule
                 relative_pos = transformed_vertex - shoulder_center
@@ -112,23 +99,22 @@ class Quadruped:
                 transformed_vertex = shoulder_center + np.array([relative_pos[0], y_new, z_new])
                 
                 # 2. Ensuite appliquer la rotation de coude (par rapport à la position après épaule)
-                elbow_center = np.array([0.0, 4.0, 0.0])  # Centre approximatif
-                if leg_index == 0:  # Front right
-                    elbow_center = np.array([1.5, 4.0, 2.5])
-                elif leg_index == 1:  # Front left
-                    elbow_center = np.array([1.5, 4.0, -2.5])
-                elif leg_index == 2:  # Back right
-                    elbow_center = np.array([-1.5, 4.0, 2.5])
-                elif leg_index == 3:  # Back left
-                    elbow_center = np.array([-1.5, 4.0, -2.5])
+                # Le point de coude doit aussi être transformé par la rotation d'épaule
+                elbow_center_original = self.elbow_positions[leg_index]
                 
-                # Appliquer la rotation de coude autour de l'axe X
-                relative_pos = transformed_vertex - elbow_center
+                # Appliquer la même transformation d'épaule au point de coude
+                elbow_relative_pos = elbow_center_original - shoulder_center
+                elbow_y_new = elbow_relative_pos[1] * cos_shoulder - elbow_relative_pos[2] * sin_shoulder
+                elbow_z_new = elbow_relative_pos[1] * sin_shoulder + elbow_relative_pos[2] * cos_shoulder
+                elbow_center_transformed = shoulder_center + np.array([elbow_relative_pos[0], elbow_y_new, elbow_z_new])
+                
+                # Appliquer la rotation de coude autour du point transformé
+                relative_pos = transformed_vertex - elbow_center_transformed
                 cos_elbow = math.cos(elbow_angle)
                 sin_elbow = math.sin(elbow_angle)
                 y_new = relative_pos[1] * cos_elbow - relative_pos[2] * sin_elbow
                 z_new = relative_pos[1] * sin_elbow + relative_pos[2] * cos_elbow
-                transformed_vertex = elbow_center + np.array([relative_pos[0], y_new, z_new])
+                transformed_vertex = elbow_center_transformed + np.array([relative_pos[0], y_new, z_new])
             
             # Appliquer les rotations globales du quadruped
             # Rotation autour de l'axe X (pitch)
@@ -163,27 +149,23 @@ class Quadruped:
 
     def set_shoulder_angle(self, leg_index, angle):
         """Définit l'angle de l'épaule pour une patte donnée (0-3)"""
-        if 0 <= leg_index <= 3:
-            self.shoulder_angles[leg_index] = angle
-            self.rotated_vertices = self.get_vertices()
+        self.shoulder_angles[leg_index] = angle
+        self.rotated_vertices = self.get_vertices()
     
     def set_elbow_angle(self, leg_index, angle):
         """Définit l'angle du coude pour une patte donnée (0-3)"""
-        if 0 <= leg_index <= 3:
-            self.elbow_angles[leg_index] = angle
-            self.rotated_vertices = self.get_vertices()
+        self.elbow_angles[leg_index] = angle
+        self.rotated_vertices = self.get_vertices()
     
     def adjust_shoulder_angle(self, leg_index, delta_angle):
         """Ajuste l'angle de l'épaule pour une patte donnée"""
-        if 0 <= leg_index <= 3:
-            self.shoulder_angles[leg_index] += delta_angle
-            self.rotated_vertices = self.get_vertices()
+        self.shoulder_angles[leg_index] += delta_angle
+        self.rotated_vertices = self.get_vertices()
     
     def adjust_elbow_angle(self, leg_index, delta_angle):
         """Ajuste l'angle du coude pour une patte donnée"""
-        if 0 <= leg_index <= 3:
-            self.elbow_angles[leg_index] += delta_angle
-            self.rotated_vertices = self.get_vertices()
+        self.elbow_angles[leg_index] += delta_angle
+        self.rotated_vertices = self.get_vertices()
     
     def draw(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le quadruped 3D avec projection et profondeur"""        
