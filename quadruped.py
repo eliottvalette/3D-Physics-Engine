@@ -64,12 +64,11 @@ class Quadruped:
             
             if part_index == 0:  # Body - pas de transformation d'articulation
                 pass
-            elif 1 <= part_index <= 4:  # Upper legs - transformation d'épaule
+            elif 1 <= part_index <= 4:  # Upper legs - transformation d'épaule seulement
                 leg_index = part_index - 1
                 shoulder_angle = self.shoulder_angles[leg_index]
                 
                 # Calculer le centre de rotation de l'épaule (point de connexion avec le body)
-                # Approximation: centre de la face de connexion
                 shoulder_center = np.array([0.0, 4.5, 0.0])  # Centre approximatif
                 if leg_index == 0:  # Front right
                     shoulder_center = np.array([1.0, 4.5, 2.5])
@@ -80,19 +79,39 @@ class Quadruped:
                 elif leg_index == 3:  # Back left
                     shoulder_center = np.array([-1.5, 4.5, -2.5])
                 
-                # Appliquer la rotation d'épaule autour de l'axe Z
+                # Appliquer la rotation d'épaule autour de l'axe X
                 relative_pos = transformed_vertex - shoulder_center
                 cos_shoulder = math.cos(shoulder_angle)
                 sin_shoulder = math.sin(shoulder_angle)
-                x_new = relative_pos[0] * cos_shoulder - relative_pos[1] * sin_shoulder
-                y_new = relative_pos[0] * sin_shoulder + relative_pos[1] * cos_shoulder
-                transformed_vertex = shoulder_center + np.array([x_new, y_new, relative_pos[2]])
+                y_new = relative_pos[1] * cos_shoulder - relative_pos[2] * sin_shoulder
+                z_new = relative_pos[1] * sin_shoulder + relative_pos[2] * cos_shoulder
+                transformed_vertex = shoulder_center + np.array([relative_pos[0], y_new, z_new])
                 
-            elif 5 <= part_index <= 8:  # Lower legs - transformation de coude
+            elif 5 <= part_index <= 8:  # Lower legs - transformation d'épaule + coude
                 leg_index = part_index - 5
+                shoulder_angle = self.shoulder_angles[leg_index]
                 elbow_angle = self.elbow_angles[leg_index]
                 
-                # Calculer le centre de rotation du coude (point de connexion avec upper leg)
+                # 1. D'abord appliquer la rotation d'épaule (même que pour upper leg)
+                shoulder_center = np.array([0.0, 4.5, 0.0])  # Centre approximatif
+                if leg_index == 0:  # Front right
+                    shoulder_center = np.array([1.0, 4.5, 2.5])
+                elif leg_index == 1:  # Front left
+                    shoulder_center = np.array([1.0, 4.5, -2.5])
+                elif leg_index == 2:  # Back right
+                    shoulder_center = np.array([-1.5, 4.5, 2.5])
+                elif leg_index == 3:  # Back left
+                    shoulder_center = np.array([-1.5, 4.5, -2.5])
+                
+                # Appliquer la rotation d'épaule
+                relative_pos = transformed_vertex - shoulder_center
+                cos_shoulder = math.cos(shoulder_angle)
+                sin_shoulder = math.sin(shoulder_angle)
+                y_new = relative_pos[1] * cos_shoulder - relative_pos[2] * sin_shoulder
+                z_new = relative_pos[1] * sin_shoulder + relative_pos[2] * cos_shoulder
+                transformed_vertex = shoulder_center + np.array([relative_pos[0], y_new, z_new])
+                
+                # 2. Ensuite appliquer la rotation de coude (par rapport à la position après épaule)
                 elbow_center = np.array([0.0, 4.0, 0.0])  # Centre approximatif
                 if leg_index == 0:  # Front right
                     elbow_center = np.array([1.5, 4.0, 2.5])
@@ -103,13 +122,13 @@ class Quadruped:
                 elif leg_index == 3:  # Back left
                     elbow_center = np.array([-1.5, 4.0, -2.5])
                 
-                # Appliquer la rotation de coude autour de l'axe Z
+                # Appliquer la rotation de coude autour de l'axe X
                 relative_pos = transformed_vertex - elbow_center
                 cos_elbow = math.cos(elbow_angle)
                 sin_elbow = math.sin(elbow_angle)
-                x_new = relative_pos[0] * cos_elbow - relative_pos[1] * sin_elbow
-                y_new = relative_pos[0] * sin_elbow + relative_pos[1] * cos_elbow
-                transformed_vertex = elbow_center + np.array([x_new, y_new, relative_pos[2]])
+                y_new = relative_pos[1] * cos_elbow - relative_pos[2] * sin_elbow
+                z_new = relative_pos[1] * sin_elbow + relative_pos[2] * cos_elbow
+                transformed_vertex = elbow_center + np.array([relative_pos[0], y_new, z_new])
             
             # Appliquer les rotations globales du quadruped
             # Rotation autour de l'axe X (pitch)
