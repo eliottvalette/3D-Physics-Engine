@@ -1,4 +1,4 @@
-# floor_and_ramp.py
+# tilted_cube.py
 import pygame
 import numpy as np
 import random as rd
@@ -7,7 +7,7 @@ from pygame.locals import *
 from config import *
 from camera import Camera3D
 from cube import Cube3D
-from ground import FloorAndRamp
+from ground import Ground
 from update_functions import *
     
 
@@ -24,10 +24,9 @@ cube = Cube3D(
         x_length=5.0,
         y_length=2.0,
         z_length=3.0,
-        rotation=np.array([4.0, 1.0, 1.0]),
-        velocity=np.array([8.0, 4.0, 2.0])
+        rotation=np.array([1.0, 1.0, 1.0])
     )
-floor_and_ramp = FloorAndRamp(size=20)
+ground = Ground(size=20)
 
 # --- Contrôles caméra ---
 camera_speed = 0.1
@@ -72,18 +71,17 @@ while running:
         camera.rotation[0] -= rotation_speed
 
     if keys[K_SPACE]:
-        print("-----------reset-----------")
         cube.reset()
     
     # --- Mise à jour physique ---
-    update_floor_and_ramp(cube, x_ramp_min=0, x_ramp_max=20, z_ramp_min=0, z_ramp_max=20, ramp_angle_degrees=45)
+    update_ground_only_complex(cube)
     
     # --- Rendu ---
     screen.fill(BLACK)
     
     # Dessiner le monde 3D
-    floor_and_ramp.draw(screen, camera)
-    floor_and_ramp.draw_axes(screen, camera)
+    ground.draw(screen, camera)
+    ground.draw_axes(screen, camera)
     cube.draw(screen, camera)
     
     # --- Interface utilisateur ---
@@ -93,12 +91,7 @@ while running:
     pos_text = f"Position: ({cube.position[0]:.2f}, {cube.position[1]:.2f}, {cube.position[2]:.2f})"
     vel_text = f"Vitesse: ({cube.velocity[0]:.2f}, {cube.velocity[1]:.2f}, {cube.velocity[2]:.2f})"
     cam_text = f"Caméra: ({camera.position[0]:.1f}, {camera.position[1]:.1f}, {camera.position[2]:.1f})"
-    angular_vel_text = f"Vélocité de rotation: ({cube.angular_velocity[0]:.2f}, {cube.angular_velocity[1]:.2f}, {cube.angular_velocity[2]:.2f})"
-    
-    if rd.random() < 0.1:
-        print(pos_text)
-        print(vel_text)
-        print(angular_vel_text)
+    angular_vel_text = f"Rotation: ({cube.angular_velocity[0]:.2f}, {cube.angular_velocity[1]:.2f}, {cube.angular_velocity[2]:.2f})"
 
     pos_surface = font.render(pos_text, True, WHITE)
     vel_surface = font.render(vel_text, True, WHITE)

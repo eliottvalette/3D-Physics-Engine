@@ -93,11 +93,6 @@ while running:
     vel_text = f"Vitesse: ({cube.velocity[0]:.2f}, {cube.velocity[1]:.2f}, {cube.velocity[2]:.2f})"
     cam_text = f"Caméra: ({camera.position[0]:.1f}, {camera.position[1]:.1f}, {camera.position[2]:.1f})"
     angular_vel_text = f"Rotation: ({cube.angular_velocity[0]:.2f}, {cube.angular_velocity[1]:.2f}, {cube.angular_velocity[2]:.2f})"
-    
-    if rd.random() < 0.1:
-        print(pos_text)
-        print(vel_text)
-        print(angular_vel_text)
 
     pos_surface = font.render(pos_text, True, WHITE)
     vel_surface = font.render(vel_text, True, WHITE)

@@ -222,3 +222,7 @@ class Quadruped:
                         if (0 <= start[0] < WINDOW_WIDTH and 0 <= start[1] < WINDOW_HEIGHT and
                             0 <= end[0] < WINDOW_WIDTH and 0 <= end[1] < WINDOW_HEIGHT):
                             pygame.draw.line(screen, part_color, start, end, 2)
+    
+    def draw_premium(self, screen: pygame.Surface, camera: Camera3D):
+        """Dessine le quadruped 3D avec projection et profondeur"""        
+        pass
