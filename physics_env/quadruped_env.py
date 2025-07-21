@@ -69,11 +69,11 @@ class QuadrupedEnv:
             self.handle_camera_controls(keys)
             self.handle_joint_controls(keys)
             if keys[K_SPACE]:
-                self.quadruped.reset()
+                self.quadruped.reset_random()
             if keys[K_p]:
                 print(self.quadruped.get_vertices())
             if keys[K_b]:
-                self.reset_joints()
+                self.quadruped.reset()
             update_quadruped(self.quadruped)
             self.render()
             self.clock.tick(FPS)
@@ -123,12 +123,6 @@ class QuadrupedEnv:
             if keys[key]:
                 self.quadruped.adjust_elbow_angle(idx, delta)
 
-    def reset_joints(self):
-        """Reset all joint angles to zero."""
-        self.quadruped.shoulder_angles = np.zeros(4)
-        self.quadruped.elbow_angles = np.zeros(4)
-        self.quadruped.rotated_vertices = self.quadruped.get_vertices()
-
     def render(self):
         """Render the 3D world and UI."""
         self.screen.fill(BLACK)
@@ -137,6 +131,10 @@ class QuadrupedEnv:
         self.quadruped.draw_premium(self.screen, self.camera)
         self.render_ui()
         pygame.display.flip()
+    
+    def get_state(self):
+        """Get the current state of the quadruped."""
+        return self.quadruped.get_state()
 
     def render_ui(self):
         """Render the UI overlays (info and instructions)."""

@@ -42,7 +42,7 @@ class Quadruped:
 
         self.prev_vertices = None
     
-    def reset(self):
+    def reset_random(self):
         self.position = self.initial_position.copy()
         self.vertices = self.initial_vertices.copy()
         self.velocity = self.initial_velocity.copy() + np.random.rand(3)
@@ -51,6 +51,14 @@ class Quadruped:
         self.shoulder_angles = self.initial_shoulder_angles.copy()
         self.elbow_angles = self.initial_elbow_angles.copy()
         self.rotated_vertices = self.get_vertices()
+    
+    def reset(self):
+        self.position = self.initial_position.copy()
+        self.vertices = self.initial_vertices.copy()
+        self.velocity = self.initial_velocity.copy()
+        self.rotation = self.initial_rotation.copy()
+        self.angular_velocity = self.initial_angular_velocity.copy()
+        self.shoulder_angles = self.initial_shoulder_angles.copy()
     
     def get_vertices(self):
         """Retourne les vertices du quadruped dans le repère monde avec transformations appliquées"""
@@ -168,6 +176,16 @@ class Quadruped:
         """Ajuste l'angle du coude pour une patte donnée"""
         self.elbow_angles[leg_index] += delta_angle
         self.rotated_vertices = self.get_vertices()
+    
+    def get_state(self):
+        """Get the current state of the quadruped."""
+        vectrices = self.get_vertices()
+        velocity = self.velocity
+        rotation = self.rotation
+        shoulder_angles = self.shoulder_angles
+        elbow_angles = self.elbow_angles
+        state = np.concatenate([vectrices, velocity, rotation, shoulder_angles, elbow_angles])
+        return state
     
     def draw(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le quadruped 3D avec projection et profondeur (arêtes seulement)"""        
