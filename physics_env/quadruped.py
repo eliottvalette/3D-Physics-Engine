@@ -1,10 +1,13 @@
 # quadruped.py
 import numpy as np
 import pygame
-from config import *
-from camera import Camera3D
+# from config import *
+from .camera import Camera3D
 import copy
 import math
+
+WINDOW_WIDTH = 1500
+WINDOW_HEIGHT = 800
 
 class Quadruped:
     def __init__(self, position, vertices=None, vectrices_dict=None, rotation = np.array([0.0, 0.0, 0.0]), velocity = np.array([0.0, 0.0, 0.0]), color = (255, 255, 255)):
@@ -59,6 +62,8 @@ class Quadruped:
         self.rotation = self.initial_rotation.copy()
         self.angular_velocity = self.initial_angular_velocity.copy()
         self.shoulder_angles = self.initial_shoulder_angles.copy()
+        self.elbow_angles = self.initial_elbow_angles.copy()
+        self.rotated_vertices = self.get_vertices()
     
     def get_vertices(self):
         """Retourne les vertices du quadruped dans le repère monde avec transformations appliquées"""

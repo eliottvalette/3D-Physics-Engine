@@ -1,4 +1,4 @@
-# poker_train_expresso.py
+# train.py
 import os
 import gc
 import numpy as np

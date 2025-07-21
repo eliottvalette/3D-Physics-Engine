@@ -1,8 +1,7 @@
 # camera.py
 import math
 import numpy as np
-from config import *
-
+from .config import *
 class Camera3D:
     def __init__(self):
         self.position = np.array([0.0, 5.0, -10.0])

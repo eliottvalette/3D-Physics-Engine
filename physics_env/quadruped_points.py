@@ -1,3 +1,4 @@
+# quadruped_points.py
 import numpy as np
 
 BODY_LENGTH = 4.0

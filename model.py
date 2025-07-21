@@ -1,10 +1,8 @@
-# poker_model.py
+# model.py
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import random as rd
-
 
 class QuadrupedActorModel(nn.Module):
     """

@@ -1,8 +1,8 @@
 # ground.py
 import numpy as np
 import pygame
-from config import *
-from camera import Camera3D
+from .config import *
+from .camera import Camera3D
 
 class Ground:
     def __init__(self, size=20):

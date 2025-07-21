@@ -1,4 +1,4 @@
-# poker_agents.py
+# agent.py
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -49,7 +49,6 @@ class QuadrupedAgent:
         self.reward_norm_coeff = 4.0
         self.target_match_loss_coeff = 0.2
         self.critic_loss_coeff = 0.015
-        self.critic_loss_coeff = 0.015
 
         # Utilisation du modèle Transformer qui attend une séquence d'inputs
         self.actor_model = QuadrupedActorModel(input_dim=state_size, output_dim=action_size).to(device)
@@ -90,8 +89,8 @@ class QuadrupedAgent:
         if not isinstance(state, (list, np.ndarray)):
             raise TypeError(f"[AGENT] state doit être une liste ou un numpy array (reçu: {type(state)})")
     
-        if random.random() < epsilon:
-            action_probs = random.random(self.action_size)
+        if np.random.rand() < epsilon:
+            action_probs = np.random.rand(self.action_size)
             chosen_actions = [1 if prob > 0.5 else 0 for prob in action_probs]
             if DEBUG_RL_AGENT:
                 print(f"[AGENT] Action choisie aléatoirement parmi les actions valides (epsilon-greedy)")
@@ -102,7 +101,7 @@ class QuadrupedAgent:
             
             self.actor_model.eval()
             with torch.no_grad():
-                action_probs = self.actor_model(state_tensor)
+                action_probs = self.actor_model(state_tensor).cpu().numpy().flatten()
             
             chosen_actions = [1 if prob > 0.5 else 0 for prob in action_probs]
             if DEBUG_RL_AGENT:
@@ -162,7 +161,7 @@ class QuadrupedAgent:
 
         # Passage en avant à travers le réseau
         action_probs = self.actor_model(states_tensor)
-        q_values, state_values = self.critic_model(state)       # Q(s,*), V(s) => (batch_size, num_actions), (batch_size, 1)
+        q_values, state_values = self.critic_model(states_tensor)       # Q(s,*), V(s) => (batch_size, num_actions), (batch_size, 1)
         
         # Calcul des valeurs des états suivants en utilisant le réseau cible pour la stabilité
         with torch.no_grad():
