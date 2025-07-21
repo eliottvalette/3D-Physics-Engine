@@ -55,9 +55,9 @@ while running:
         camera.go_left(camera_speed)
     if keys[K_d]: # D = Droite
         camera.go_right(camera_speed)
-    if keys[K_a]: # A = Monter
+    if keys[K_e]: # E = Monter
         camera.position[1] += camera_speed
-    if keys[K_e]: # E = Descendre
+    if keys[K_a]: # A = Descendre
         camera.position[1] -= camera_speed
     
     # Rotation caméra
@@ -73,7 +73,7 @@ while running:
     if keys[K_SPACE]:
         quadruped.reset()
     
-    if keys[K_h]:
+    if keys[K_p]:
         print(quadruped.get_vertices())
     
     # --- Contrôles des articulations ---

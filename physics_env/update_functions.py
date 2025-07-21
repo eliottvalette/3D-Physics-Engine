@@ -4,7 +4,7 @@ import math
 import random
 
 from config import DT, GRAVITY, RESTITUTION, FRICTION, CONTACT_THRESHOLD_BASE, CONTACT_THRESHOLD_MULTIPLIER
-from config import MAX_VELOCITY, MAX_ANGULAR_VELOCITY, MAX_IMPULSE, MAX_AVERAGE_IMPULSE
+from config import MAX_VELOCITY, MAX_ANGULAR_VELOCITY, MAX_IMPULSE, MAX_AVERAGE_IMPULSE, DEBUG_CONTACT
 from cube import Cube3D
 from joint import Joint
 from quadruped import Quadruped
@@ -407,14 +407,14 @@ def update_quadruped(quadruped: Quadruped):
     # Appliquer la gravité au centre de masse
     quadruped.velocity += GRAVITY * DT
 
-    # Mise à jour de la position et de la rotation (CORRECTION 9: rotation stable)
+    # Mise à jour de la position et de la rotation
     quadruped.position += quadruped.velocity * DT
     quadruped.rotation = (quadruped.rotation + quadruped.angular_velocity * DT) % (2 * np.pi)
     
     # Recalculer les sommets après mise à jour
     quadruped.rotated_vertices = quadruped.get_vertices()
     
-    # CORRECTION 5: Critères de contact dynamiques
+    # Critères de contact dynamiques
     contact_threshold = max(CONTACT_THRESHOLD_BASE, abs(quadruped.velocity[1]) * DT * CONTACT_THRESHOLD_MULTIPLIER)
     
     # Trier les sommets du plus proche du sol au plus loin
@@ -422,11 +422,11 @@ def update_quadruped(quadruped: Quadruped):
     is_close_to_ground = sorted_vertices[0][1] <= contact_threshold
     is_on_ground = sorted_vertices[7][1] <= contact_threshold
 
-    # CORRECTION 7: Limitation de vitesse douce
+    # Limitation de vitesse douce
     quadruped.velocity = limit_vector(quadruped.velocity, MAX_VELOCITY)
     quadruped.angular_velocity = limit_vector(quadruped.angular_velocity, MAX_ANGULAR_VELOCITY)
 
-    # CORRECTION 6: Amortissement réaliste avec restitution et friction
+    # Amortissement réaliste avec restitution et friction
     if is_close_to_ground:
         # Réduire légèrement les vitesses horizontales et angulaires
         quadruped.velocity[0] *= (1 - FRICTION * 0.1)
@@ -440,13 +440,17 @@ def update_quadruped(quadruped: Quadruped):
         quadruped.velocity[2] *= (1 - FRICTION)  # Friction horizontale
         quadruped.angular_velocity *= (1 - FRICTION)  # Friction angulaire
 
-    # CORRECTION 4: Correction de pénétration conservatrice
     # Calculer la pénétration maximale sur tous les sommets
     penetrations = []
-    collision_impulses = []
-    collision_angular_impulses = []
+
+    # --- on sépare maintenant vertical (normal) et tangentiel ---
+    collision_impulses_normal = []
+    collision_angular_impulses_normal = []
+    collision_impulses_tangent = []
+    collision_angular_impulses_tangent = []
     
     for vertex in quadruped.rotated_vertices:
+        jn_scalar = 0.0  # impulsion normale appliquée sur CE sommet (servira à la friction)
         if vertex[1] < 0:
             # Position du sommet par rapport au centre de masse
             relative_position = vertex - quadruped.position
@@ -468,28 +472,70 @@ def update_quadruped(quadruped: Quadruped):
                 
                 if denom != 0:
                     scalar_impulse = -relative_velocity / denom
+                    jn_scalar = scalar_impulse  # pour la friction
                     
                     # Limiter l'impulsion pour éviter les rebonds excessifs
                     scalar_impulse = np.clip(scalar_impulse, -MAX_IMPULSE, MAX_IMPULSE)
                     
                     # Stocker les impulsions pour application ultérieure
-                    collision_impulses.append((scalar_impulse * normal) / mass)
-                    collision_angular_impulses.append(np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0))
+                    collision_impulses_normal.append((scalar_impulse * normal) / mass)
+                    collision_angular_impulses_normal.append(
+                        np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0)
+                    )
+        
+         # ---- 3.b Impulsion tangentielle ------------------------
+        if vertex[1] < 0.1:
+            normal = np.array([0.0, 1.0, 0.0])
+            relative_position = vertex - quadruped.position
+            vertex_velocity = quadruped.velocity + np.cross(quadruped.angular_velocity, relative_position)
+
+            v_normal = np.dot(vertex_velocity, normal) * normal
+            v_tangent = vertex_velocity - v_normal
+            v_tan_norm = np.linalg.norm(v_tangent)
+
+            if v_tan_norm > 1e-6:
+                # Direction unitaire tangentielle
+                t_dir = v_tangent / v_tan_norm
+
+                # Masse effective dans la direction tangentielle
+                r_cross_t = np.cross(relative_position, t_dir)
+                denom_t = (1/mass) + np.dot(
+                    t_dir,
+                    np.cross(
+                        np.divide(r_cross_t, I, out=np.zeros_like(r_cross_t), where=I!=0),
+                        relative_position
+                    )
+                )
+
+                if denom_t != 0:
+                    # Impulsion maximale autorisée par Coulomb basée sur l'impulsion normale réelle
+                    mu = FRICTION
+                    max_j_t = mu * abs(jn_scalar) if jn_scalar != 0 else mu * mass * np.linalg.norm(GRAVITY) * DT
+
+                    # Impulsion nécessaire pour annuler la vitesse tangentielle
+                    j_t_magnitude = min(v_tan_norm / denom_t, max_j_t)
+                    j_t = -t_dir * j_t_magnitude
+
+                    collision_impulses_tangent.append(j_t / mass)
+                    collision_angular_impulses_tangent.append(
+                        np.divide(np.cross(relative_position, j_t), I, out=np.zeros(3), where=I!=0)
+                    )
 
     # Appliquer la correction de position une seule fois
     if penetrations:
         max_penetration = max(penetrations)
         quadruped.position[1] += max_penetration
 
-    # Appliquer les impulsions moyennées si il y a eu des collisions
-    if collision_impulses:
-        # Moyenner les impulsions pour éviter l'accumulation excessive
-        average_impulse = np.mean(collision_impulses, axis=0)
-        average_angular_impulse = np.mean(collision_angular_impulses, axis=0)
-        
-        # Limiter les impulsions moyennes
-        average_impulse = limit_vector(average_impulse, MAX_AVERAGE_IMPULSE)
-        average_angular_impulse = limit_vector(average_angular_impulse, MAX_AVERAGE_IMPULSE)
-        
-        quadruped.velocity += average_impulse
-        quadruped.angular_velocity += average_angular_impulse
+    # --- Moyenne et application des impulsions verticales ---
+    if collision_impulses_normal:
+        avg_imp_n = limit_vector(np.mean(collision_impulses_normal, axis=0), MAX_AVERAGE_IMPULSE)
+        avg_ang_n = limit_vector(np.mean(collision_angular_impulses_normal, axis=0), MAX_AVERAGE_IMPULSE)
+        quadruped.velocity += avg_imp_n
+        quadruped.angular_velocity += avg_ang_n
+
+    # --- Moyenne et application des impulsions tangentielles ---
+    if collision_impulses_tangent:
+        avg_imp_t = limit_vector(np.mean(collision_impulses_tangent, axis=0), MAX_AVERAGE_IMPULSE)   # mets un plafond dédié si besoin
+        avg_ang_t = limit_vector(np.mean(collision_angular_impulses_tangent, axis=0), MAX_AVERAGE_IMPULSE)
+        quadruped.velocity += avg_imp_t
+        quadruped.angular_velocity += avg_ang_t

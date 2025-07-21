@@ -32,6 +32,10 @@ MAX_IMPULSE = 5.0
 MAX_AVERAGE_IMPULSE = 2.0
 
 # --- Contact / Friction ----------------------------------------------------
-MU_STATIC          = 2.0     # très forte adhérence (le quad ne doit pas glisser)
-MU_DYNAMIC         = 1.0     # coulomb cinétique
-STATIC_VEL_THRESH  = 0.03    # m/s : en‑dessous, on essaye d’annuler v_t
+SLIP_THRESHOLD = 0.05      # Le pied reste « collé » tant que |v_t| < SLIP_THRESHOLD cm/s
+STATIC_FRICTION_CAP = 50.0 # Impulsion de Traction maximale transmise au Quadruped
+
+# ----------------------------------------------------------
+# Active ou non les traces de contact / impulsions
+DEBUG_CONTACT = True        # passe à False pour désactiver les logs
+# ----------------------------------------------------------
