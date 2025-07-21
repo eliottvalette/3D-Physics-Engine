@@ -35,7 +35,20 @@ MAX_AVERAGE_IMPULSE = 2.0
 SLIP_THRESHOLD = 0.05      # le pied reste « collé » tant que |v_t| < SLIP_THRESHOLD cm/s
 STATIC_FRICTION_CAP  = 50.0     # impulsion maximale transmise au quadruped
 
-# ----------------------------------------------------------
-# Active ou non les traces de contact / impulsions
-DEBUG_CONTACT = True        # passe à False pour désactiver les logs
-# ----------------------------------------------------------
+# ----- Debug Physics Simulation --------------------------------------
+DEBUG_CONTACT = False       
+
+# ----- Debug RL Training --------------------------------------
+DEBUG_RL_TRAIN = False
+DEBUG_RL_MODEL = False
+DEBUG_RL_AGENT = False
+DEBUG_RL_VIZ = False
+
+# ----- RL Training Config --------------------------------------
+EPISODES = 1000
+MAX_STEPS = 1000
+START_EPS = 1.0
+EPS_DECAY = 0.995
+EPS_MIN = 0.01
+PLOT_INTERVAL = 10
+SAVE_INTERVAL = 100
