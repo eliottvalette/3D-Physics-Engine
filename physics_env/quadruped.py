@@ -39,6 +39,8 @@ class Quadruped:
         self.initial_elbow_angles = self.elbow_angles.copy()
 
         self.rotated_vertices = self.get_vertices()
+
+        self.prev_vertices = None
     
     def reset(self):
         self.position = self.initial_position.copy()

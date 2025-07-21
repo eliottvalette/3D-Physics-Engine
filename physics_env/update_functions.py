@@ -4,7 +4,7 @@ import math
 import random
 
 from config import DT, GRAVITY, RESTITUTION, FRICTION, CONTACT_THRESHOLD_BASE, CONTACT_THRESHOLD_MULTIPLIER
-from config import MAX_VELOCITY, MAX_ANGULAR_VELOCITY, MAX_IMPULSE, MAX_AVERAGE_IMPULSE, DEBUG_CONTACT
+from config import MAX_VELOCITY, MAX_ANGULAR_VELOCITY, MAX_IMPULSE, MAX_AVERAGE_IMPULSE, DEBUG_CONTACT, STATIC_FRICTION_CAP
 from cube import Cube3D
 from joint import Joint
 from quadruped import Quadruped
@@ -383,6 +383,7 @@ def update_quadruped(quadruped: Quadruped):
 
     # Mettre à jour les sommets du cube
     quadruped.rotated_vertices = quadruped.get_vertices()
+    prev_vertices = quadruped.prev_vertices if quadruped.prev_vertices is not None else quadruped.rotated_vertices
 
     # Constantes physiques
     mass = 1.0
@@ -450,7 +451,6 @@ def update_quadruped(quadruped: Quadruped):
     collision_angular_impulses_tangent = []
     
     for vertex in quadruped.rotated_vertices:
-        jn_scalar = 0.0  # impulsion normale appliquée sur CE sommet (servira à la friction)
         if vertex[1] < 0:
             # Position du sommet par rapport au centre de masse
             relative_position = vertex - quadruped.position
@@ -472,9 +472,11 @@ def update_quadruped(quadruped: Quadruped):
                 
                 if denom != 0:
                     scalar_impulse = -relative_velocity / denom
-                    jn_scalar = scalar_impulse  # pour la friction
                     
                     # Limiter l'impulsion pour éviter les rebonds excessifs
+                    if DEBUG_CONTACT:
+                        print(f"[NORMAL] v_rel={relative_velocity:.3f}  "
+                              f"jn_raw={scalar_impulse:.3f}")
                     scalar_impulse = np.clip(scalar_impulse, -MAX_IMPULSE, MAX_IMPULSE)
                     
                     # Stocker les impulsions pour application ultérieure
@@ -482,45 +484,6 @@ def update_quadruped(quadruped: Quadruped):
                     collision_angular_impulses_normal.append(
                         np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0)
                     )
-        
-         # ---- 3.b Impulsion tangentielle ------------------------
-        if vertex[1] < 0.1:
-            normal = np.array([0.0, 1.0, 0.0])
-            relative_position = vertex - quadruped.position
-            vertex_velocity = quadruped.velocity + np.cross(quadruped.angular_velocity, relative_position)
-
-            v_normal = np.dot(vertex_velocity, normal) * normal
-            v_tangent = vertex_velocity - v_normal
-            v_tan_norm = np.linalg.norm(v_tangent)
-
-            if v_tan_norm > 1e-6:
-                # Direction unitaire tangentielle
-                t_dir = v_tangent / v_tan_norm
-
-                # Masse effective dans la direction tangentielle
-                r_cross_t = np.cross(relative_position, t_dir)
-                denom_t = (1/mass) + np.dot(
-                    t_dir,
-                    np.cross(
-                        np.divide(r_cross_t, I, out=np.zeros_like(r_cross_t), where=I!=0),
-                        relative_position
-                    )
-                )
-
-                if denom_t != 0:
-                    # Impulsion maximale autorisée par Coulomb basée sur l'impulsion normale réelle
-                    mu = FRICTION
-                    max_j_t = mu * abs(jn_scalar) if jn_scalar != 0 else mu * mass * np.linalg.norm(GRAVITY) * DT
-
-                    # Impulsion nécessaire pour annuler la vitesse tangentielle
-                    j_t_magnitude = min(v_tan_norm / denom_t, max_j_t)
-                    j_t = -t_dir * j_t_magnitude
-
-                    collision_impulses_tangent.append(j_t / mass)
-                    collision_angular_impulses_tangent.append(
-                        np.divide(np.cross(relative_position, j_t), I, out=np.zeros(3), where=I!=0)
-                    )
-
     # Appliquer la correction de position une seule fois
     if penetrations:
         max_penetration = max(penetrations)
@@ -539,3 +502,36 @@ def update_quadruped(quadruped: Quadruped):
         avg_ang_t = limit_vector(np.mean(collision_angular_impulses_tangent, axis=0), MAX_AVERAGE_IMPULSE)
         quadruped.velocity += avg_imp_t
         quadruped.angular_velocity += avg_ang_t
+
+    # --- Ajout : traction latérale basée sur t‑1 ---
+    mass = 1.0
+    traction_imp, traction_ang = [], []
+    for previous_vertex, current_vertex in zip(prev_vertices, quadruped.rotated_vertices):
+        # le point est (et était) au sol ?
+        previous_on_ground = previous_vertex[1] <= contact_threshold
+        current_on_ground = current_vertex[1] <= contact_threshold
+        if not (previous_on_ground and current_on_ground):
+            continue
+        # déplacement réel du sommet (inclut la cinématique des membres)
+        delta = current_vertex - previous_vertex
+        delta[1] = 0.0  # composante tangentielle
+        if np.linalg.norm(delta) < 1e-8:
+            continue
+        
+        # vitesse “imposée” au sol → impulsion opposée sur le corps
+        J_needed = -mass * delta / DT  # N·s
+        J_cap = STATIC_FRICTION_CAP * DT  # adhérence max
+        J = np.clip(J_needed, -J_cap, J_cap)
+        # linéaire
+        traction_imp.append(J / mass)
+        # angulaire
+        r = current_vertex - quadruped.position
+        traction_ang.append(
+            np.divide(np.cross(r, J), I, out=np.zeros(3), where=I!=0)
+        )
+    if traction_imp:
+        quadruped.velocity += limit_vector(np.mean(traction_imp, axis=0), MAX_AVERAGE_IMPULSE)
+        quadruped.angular_velocity += limit_vector(np.mean(traction_ang, axis=0), MAX_AVERAGE_IMPULSE)
+
+    # --- Mémorise l’état pour la frame suivante ---
+    quadruped.prev_vertices = quadruped.rotated_vertices.copy()

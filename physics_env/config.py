@@ -32,8 +32,8 @@ MAX_IMPULSE = 5.0
 MAX_AVERAGE_IMPULSE = 2.0
 
 # --- Contact / Friction ----------------------------------------------------
-SLIP_THRESHOLD = 0.05      # Le pied reste « collé » tant que |v_t| < SLIP_THRESHOLD cm/s
-STATIC_FRICTION_CAP = 50.0 # Impulsion de Traction maximale transmise au Quadruped
+SLIP_THRESHOLD = 0.05      # le pied reste « collé » tant que |v_t| < SLIP_THRESHOLD cm/s
+STATIC_FRICTION_CAP  = 50.0     # impulsion maximale transmise au quadruped
 
 # ----------------------------------------------------------
 # Active ou non les traces de contact / impulsions
