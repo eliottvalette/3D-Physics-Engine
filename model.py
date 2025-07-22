@@ -33,9 +33,6 @@ class QuadrupedActorModel(nn.Module):
             nn.GELU(),
             nn.LayerNorm(dim_feedforward)
         )
-        
-        # Tête de sortie pour prédire les probabilités d'action.
-        # Elle transforme la représentation finale en un vecteur de probabilité de taille output_dim .
         self.action_head = nn.Sequential(
             nn.Linear(dim_feedforward, dim_feedforward),
             nn.GELU(),
@@ -60,7 +57,7 @@ class QuadrupedCriticModel(nn.Module):
         • tête A(s,a)       → (batch, num_actions) - une pour chaque action
         • Q(s,a)=V+A-mean(A)
     """
-    def __init__(self, input_dim, output_dim, dim_feedforward=512):
+    def __init__(self, input_dim, dim_feedforward=512):
         super().__init__()
 
         self.seq_1 = nn.Sequential(
@@ -81,8 +78,6 @@ class QuadrupedCriticModel(nn.Module):
             nn.LayerNorm(dim_feedforward)
         )
 
-        # Tête de sortie pour prédire les probabilités d'action.
-        # Elle transforme la représentation finale (64 dimensions) en un vecteur de probabilité de taille output_dim (ici 5).
         self.V_head = nn.Sequential(
             nn.Linear(dim_feedforward, dim_feedforward),
             nn.GELU(),
@@ -90,20 +85,9 @@ class QuadrupedCriticModel(nn.Module):
             nn.Linear(dim_feedforward, 1)
         )
 
-        self.A_head = nn.Sequential(
-            nn.Linear(dim_feedforward, dim_feedforward),
-            nn.GELU(),
-            nn.LayerNorm(dim_feedforward),
-            nn.Linear(dim_feedforward, output_dim)
-        )
-
     def forward(self, x):
         """
         Here V(s) estimates the value of the state, it's an estimation of how much the situation is favorable (in terms of future expected rewards)
-        A(s,a) estimates the advantage of each action combination, it's an estimation of how much each action combination is favorable compared to the other combinations.
-
-        So Q(s,a) is a function that estimates the future expected rewards of action combination a in state s.
-        To do so, it takes that current value of the state V(s), add the advantage of the action combination A(s,a) to it and substract the mean of the advantages to normalize it. 
         """
         x = self.seq_1(x)
         x = self.seq_2(x)
@@ -111,13 +95,7 @@ class QuadrupedCriticModel(nn.Module):
 
         V = self.V_head(x)
 
-        A = self.A_head(x)
-
-        # 7. Calcul de la Q-value :
-        #    Q(s,a)=V+A-mean(A)
-        Q = V + A - A.mean(dim=-1, keepdim=True)
-
-        return Q, V
+        return V
 
 
 

@@ -52,10 +52,13 @@ class QuadrupedAgent:
 
         # Utilisation du modèle Transformer qui attend une séquence d'inputs
         self.actor_model = QuadrupedActorModel(input_dim=state_size, output_dim=action_size).to(device)
-        self.critic_model = QuadrupedCriticModel(input_dim=state_size, output_dim=action_size).to(device)
+        self.critic_model = QuadrupedCriticModel(input_dim=state_size).to(device)
+        self.critic_target = QuadrupedCriticModel(input_dim=state_size).to(device)
+        self.critic_target.load_state_dict(self.critic_model.state_dict())
         self.optimizer = optim.Adam(self.actor_model.parameters(), lr=self.learning_rate)
         self.critic_optimizer = optim.Adam(self.critic_model.parameters(), lr=self.learning_rate * 0.1)
         self.memory = deque(maxlen=1_000)  # Buffer de replay
+        self.polyak_tau = 0.995
 
         if load_model:
             self.load(load_path)
@@ -81,42 +84,28 @@ class QuadrupedAgent:
 
     def get_action(self, state, epsilon=0.0):
         """
-        Sélectionne une action selon la politique epsilon-greedy.
-        Ici, 'state' est une séquence de vecteurs (shape: [n, 106]).
-
-        Retourne l'action choisie et une éventuelle pénalité si l'action était invalide.
+        Sélectionne une action continue selon la politique (tanh ∈ [‑1, 1]).
+        Retourne (shoulder_actions, elbow_actions, actions_pred) où actions_pred est le vecteur complet (8,).
         """
         if not isinstance(state, (list, np.ndarray)):
             raise TypeError(f"[AGENT] state doit être une liste ou un numpy array (reçu: {type(state)})")
     
-        if np.random.rand() < epsilon:
-            actions_probs = (torch.rand(self.action_size, device=self.device) * 2 - 1)
-            if DEBUG_RL_AGENT:
-                print(f"[AGENT] Action choisie aléatoirement parmi les actions valides (epsilon-greedy)")
-        else:
-            # Convertir l'array numpy en tenseur PyTorch
-            state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
-            
-            self.actor_model.eval()
-            with torch.no_grad():
-                actions_probs = self.actor_model(state_tensor)
-            
-            if DEBUG_RL_AGENT:
-                print(f"[AGENT] Action choisie par le modèle actuel en train d'être entrainé (epsilon-greedy)")
-
-        shoulder_actions = actions_probs[:4]
-        elbow_actions = actions_probs[4:]
+        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+        self.actor_model.eval()
+        with torch.no_grad():
+            actions_pred = self.actor_model(state_tensor)
+        actions_pred_np = actions_pred.cpu().numpy()
+        shoulder_actions = actions_pred_np[:4]
+        elbow_actions = actions_pred_np[4:]
         if DEBUG_RL_AGENT:
             print(f"[AGENT] shoulder_actions : {shoulder_actions}")
             print(f"[AGENT] elbow_actions : {elbow_actions}")
-
-        return shoulder_actions, elbow_actions
+        return shoulder_actions, elbow_actions, actions_pred
 
     def remember(self, state, action_probs, reward, done, next_state):
         """
         Stocke une transition dans la mémoire de replay, cette transition sera utilisée pour l'entrainement du model
         """
-        # Stocker la séquence d'états, l'indice d'action choisie, le masque d'action valide et la récompense finale
         self.memory.append((state, action_probs, reward, done, next_state))
 
     def train_model(self, batch_size=32):
@@ -144,92 +133,61 @@ class QuadrupedAgent:
                 print('Pas assez de données pour entraîner:', len(self.memory))
             return {
                 'reward_norm_mean': None,
-                'invalid_action_loss': None,
-                'value_loss': None,
-                'policy_loss': None,
+                'critic_loss': None,
+                'actor_loss': None,
                 'entropy': None,
                 'total_loss': None
             }
 
-        # Échantillonner les transitions et décompresser, y compris les target_vectors
         batch = random.sample(self.memory, batch_size)
         state, action_probs, rewards, dones, next_state = zip(*batch)
 
-        # Convertir les actions et récompenses en tenseurs
-        action_probs_tensor = torch.tensor([a for a in action_probs], dtype=torch.float32, device=self.device)
         rewards_tensor = torch.tensor(rewards, dtype=torch.float32, device=self.device)
         dones_tensor = torch.tensor(dones, dtype=torch.float32, device=self.device)
         states_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
         next_states_tensor = torch.tensor(next_state, dtype=torch.float32, device=self.device)
+        action_tensor = torch.stack(action_probs).to(self.device)
 
-        # Passage en avant à travers le réseau
-        action_probs = self.actor_model(states_tensor)
-        q_values, state_values = self.critic_model(states_tensor)       # Q(s,*), V(s) => (batch_size, num_actions), (batch_size, 1)
-        
-        # Calcul des valeurs des états suivants en utilisant le réseau cible pour la stabilité
-        with torch.no_grad():
-            q_next, _ = self.critic_model(next_states_tensor) # Q_target(s',*) => (batch_size, num_actions)
-            next_state_values = q_next.max(dim=1).values      # max_a' Q_target(s',a') => (batch_size, 1)
-        
-        # Obtenir la Q-value pour l'action choisie
-        chosen_action_q_values = (q_values * action_probs_tensor).sum(dim=1)
+        # Critic forward
+        state_values = self.critic_model(states_tensor).squeeze(1)
+        next_state_values = self.critic_target(next_states_tensor).squeeze(1).detach()
 
-        # Calculer la cible TD et l'avantage
-        td_targets = rewards_tensor + self.gamma * next_state_values * (1 - dones_tensor)     # td_target = r + γ·maxₐ′ Q_target(s′, a′)
-        advantages = chosen_action_q_values - state_values.squeeze(1).detach()                # A = Q - V Positif signifie que l'action est meilleure que prévu.
+        # TD target et advantage
+        td_targets = rewards_tensor + self.gamma * next_state_values * (1 - dones_tensor)
+        advantages = td_targets - state_values.detach()
 
-        if DEBUG_RL_AGENT:
-            print(f'[AGENT] state_values, mean : {state_values.mean()}, max : {state_values.max()}, min : {state_values.min()}')
-            print(f'[AGENT] rewards, mean : {rewards_tensor.mean()}, max : {rewards_tensor.max()}, min : {rewards_tensor.min()}')
-            print(f'[AGENT] next_state_values, mean : {next_state_values.mean()}, max : {next_state_values.max()}, min : {next_state_values.min()}')
-            print(f'[AGENT] advantages, mean : {advantages.mean()}, max : {advantages.max()}, min : {advantages.min()}')
+        critic_loss = F.mse_loss(state_values, td_targets)
 
-        # Perte du critique: MSE entre les Q-values prédites et les cibles TD
-        critic_loss = F.mse_loss(chosen_action_q_values, td_targets.detach())
-        
-        # Perte de l'état: MSE entre les valeurs d'état prédites et les récompenses normalisées
-        state_value_loss = F.mse_loss(state_values.squeeze(), td_targets.detach())
-        
-        # Combinaison des pertes du critique
-        total_critic_loss = critic_loss * self.critic_loss_coeff + self.value_loss_coeff * state_value_loss
+        # Actor: log-prob d'une gaussienne diag centrée sur l'action prédite
+        mu = self.actor_model(states_tensor)
+        log_std = torch.zeros_like(mu)  # std fixée à 1 pour chaque action
+        std = log_std.clamp(-4, 2).exp() + 1e-6
+        dist = torch.distributions.Normal(mu, std)
+        logp_actions = dist.log_prob(action_tensor).sum(-1)
+        actor_loss = -(advantages * logp_actions).mean()
+        entropy = dist.entropy().sum(-1).mean()
 
-        # Perte de l'acteur: utiliser l'avantage pour guider la politique
-        # On veut maximiser log(π(a|s)) * avantage, donc minimiser le négatif
-        log_probs = torch.log(action_probs.clamp(min=1e-8))
-        # Récupérer les log-probs pour les actions choisies (multi-binaire)
-        # action_probs_tensor: (batch_size, num_actions), log_probs: (batch_size, num_actions)
-        action_log_probs = (log_probs * action_probs_tensor).sum(dim=1)
-        # Politique guidée par l'avantage
-        policy_loss = -(action_log_probs * advantages.detach()).mean()
-        
-        # Bonus d'entropie: encourager l'exploration
-        entropy = -torch.sum(action_probs * log_probs, dim=1).mean()
-        
-        # Perte totale de l'acteur: combinaison pondérée des composantes
-        total_actor_loss = (
-            policy_loss * self.policy_loss_coeff
-            - entropy * self.entropy_coeff  # Le négatif car on veut maximiser l'entropie
-        )
-
-        # Étape d'optimisation pour le critique
+        # Optim Critic
         self.critic_optimizer.zero_grad()
-        total_critic_loss.backward(retain_graph=True)
+        critic_loss.backward(retain_graph=True)
         self.critic_optimizer.step()
-        
-        # Étape d'optimisation pour l'acteur
+
+        # Optim Actor
         self.optimizer.zero_grad()
-        total_actor_loss.backward()
+        actor_loss.backward()
         self.optimizer.step()
 
-        # Métriques pour le suivi
+        # Polyak update
+        with torch.no_grad():
+            for param, target_param in zip(self.critic_model.parameters(), self.critic_target.parameters()):
+                target_param.data.mul_(self.polyak_tau)
+                target_param.data.add_((1 - self.polyak_tau) * param.data)
+
         metrics = {
             'reward_norm_mean': rewards_tensor.mean().item(),
-            'critic_loss': critic_loss.item() * self.critic_loss_coeff,
-            'state_value_loss': state_value_loss.item() * self.value_loss_coeff,
-            'policy_loss': policy_loss.item() * self.policy_loss_coeff,
-            'entropy': entropy.item() * self.entropy_coeff,
-            'total_actor_loss': total_actor_loss.item(),
-            'total_critic_loss': total_critic_loss.item()
+            'critic_loss': critic_loss.item(),
+            'actor_loss': actor_loss.item(),
+            'entropy': entropy.item(),
+            'total_loss': actor_loss.item() + critic_loss.item()
         }
-
         return metrics

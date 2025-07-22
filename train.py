@@ -43,20 +43,18 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
         state = env.get_state()
 
         # Prédiction avec une inférence classique du modèle
-        shoulder_actions, elbow_actions = agent.get_action(state = state, epsilon = epsilon)
+        shoulders, elbows, action_vec = agent.get_action(state, epsilon)
         
         if DEBUG_RL_TRAIN:
             print(f"[TRAIN] state : {state}")
-            print(f"[TRAIN] shoulder_actions : {shoulder_actions}")
-            print(f"[TRAIN] elbow_actions : {elbow_actions}")
+            print(f"[TRAIN] shoulder_actions : {shoulders}")
+            print(f"[TRAIN] elbow_actions : {elbows}")
 
         # Exécuter l'action dans l'environnement
-        next_state, reward = env.step(shoulder_actions, elbow_actions)
+        next_state, reward, done = env.step(shoulders, elbows)
 
         # Stocker l'expérience
-        done = step == MAX_STEPS - 1
-        action_probs = np.concatenate([shoulder_actions, elbow_actions])
-        agent.remember(state, action_probs, reward, done, next_state)
+        agent.remember(state, action_vec, reward, done, next_state)
 
         data_collector.add_state(state)
     
@@ -64,14 +62,18 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
         if rendering and (step % render_every == 0):
             env.render(reward)
 
+        # Training mid-episode car ils sont très longs
+        if step % 5 == 0:
+            metrics = agent.train_model()
+            data_collector.add_metrics(metrics)
+        
+        if done:
+            break
+
     print(f"\n[TRAIN] === Résultats de l'épisode [{episode + 1}/{EPISODES}] ===")
 
-    metrics_list = []
     metrics = agent.train_model()
-    metrics_list.append(metrics)
-
-    # Sauvegarde des données
-    data_collector.add_metrics(metrics_list)
+    data_collector.add_metrics(metrics)
     data_collector.save_episode(episode)
 
 def main_training_loop(agent: QuadrupedAgent, episodes: int, rendering: bool, render_every: int):

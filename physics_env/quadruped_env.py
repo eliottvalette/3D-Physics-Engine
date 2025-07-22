@@ -17,16 +17,16 @@ class QuadrupedEnv:
     """
     # Key mappings for joint controls
     SHOULDER_KEYS = [
-        (K_r, 0, 0.05), (K_f, 0, -0.05),  # Front Right
-        (K_t, 1, 0.05), (K_g, 1, -0.05),  # Front Left
-        (K_y, 2, 0.05), (K_h, 2, -0.05),  # Back Right
-        (K_u, 3, 0.05), (K_j, 3, -0.05),  # Back Left
+        (K_r, 0, 1), (K_f, 0, -1),  # Front Right
+        (K_t, 1, 1), (K_g, 1, -1),  # Front Left
+        (K_y, 2, 1), (K_h, 2, -1),  # Back Right
+        (K_u, 3, 1), (K_j, 3, -1),  # Back Left
     ]
     ELBOW_KEYS = [
-        (K_1, 0, 0.05), (K_2, 0, -0.05),  # Front Right
-        (K_3, 1, 0.05), (K_4, 1, -0.05),  # Front Left
-        (K_5, 2, 0.05), (K_6, 2, -0.05),  # Back Right
-        (K_7, 3, 0.05), (K_8, 3, -0.05),  # Back Left
+        (K_1, 0, 1), (K_2, 0, -1),  # Front Right
+        (K_3, 1, 1), (K_4, 1, -1),  # Front Left
+        (K_5, 2, 1), (K_6, 2, -1),  # Back Right
+        (K_7, 3, 1), (K_8, 3, -1),  # Back Left
     ]
     INSTRUCTIONS = [
         "Contrôles:",
@@ -62,6 +62,9 @@ class QuadrupedEnv:
         self.rotation_speed = 0.02
         self.font = pygame.font.Font(None, 24)
 
+        # --- suivi du progrès pour la reward ---
+        self.prev_body_x = self.quadruped.position[0]
+
     def run(self):
         """Main game loop."""
         running = True
@@ -79,11 +82,11 @@ class QuadrupedEnv:
             if keys[K_p]:
                 print(self.quadruped.get_vertices())
             
-            _, reward = self.step(shoulder_actions, elbow_actions, camera_actions, reset_actions)
+            _, reward, done = self.step(shoulder_actions, elbow_actions, camera_actions, reset_actions)
 
             update_quadruped(self.quadruped)
             if self.rendering:
-                self.render(reward)
+                self.render(reward, done)
             self.clock.tick(FPS)
         pygame.quit()
 
@@ -129,12 +132,12 @@ class QuadrupedEnv:
         """Handle joint (shoulder and elbow) controls based on key input."""
         shoulder_actions = [0, 0, 0, 0]
         elbow_actions = [0, 0, 0, 0]
-        for key, idx, delta in self.SHOULDER_KEYS:
+        for key, idx, sign in self.SHOULDER_KEYS:
             if keys[key]:
-                shoulder_actions[idx] = 1
-        for key, idx, delta in self.ELBOW_KEYS:
+                shoulder_actions[idx] = sign
+        for key, idx, sign in self.ELBOW_KEYS:
             if keys[key]:
-                elbow_actions[idx] = 1
+                elbow_actions[idx] = sign
         return shoulder_actions, elbow_actions
     
     def step(self, shoulder_actions, elbow_actions, camera_actions = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], reset_actions = [0, 0]):
@@ -175,18 +178,40 @@ class QuadrupedEnv:
         update_quadruped(self.quadruped)
 
         next_state = self.get_state()
-        reward = 0.0
+        
+        # -----------------------------------------------------------------
+        # 1) Progrès vers l’avant (max : +1 par step si on avance d’un « mètre »)
+        forward_progress = self.quadruped.position[0] - self.prev_body_x
+        self.prev_body_x = self.quadruped.position[0]
 
-        return next_state, reward
+        # 2) Stabilité : pénalise l’inclinaison et les grands bonds
+        tilt_penalty = abs(self.quadruped.rotation[0]) + abs(self.quadruped.rotation[2])
+        height_penalty = max(0.0, 0.5 - self.quadruped.position[1]) * 5   # tombe ? → gros malus
+
+        # 3) Énergie : limite les gestes inutiles
+        energy_penalty = 0.001 * (np.square(shoulder_actions).sum() +
+                                  np.square(elbow_actions).sum())
+
+        # 4) Reward finale
+        reward = (
+            1.0 * forward_progress          # aller de l’avant
+            - 0.2 * tilt_penalty            # rester droit
+            - energy_penalty                # consommer peu
+            - height_penalty                # ne pas tomber
+        )
+        # -----------------------------------------------------------------
+
+        done = bool(self.quadruped.position[1] < 1.2)  # corps touche (quasi) le sol
+        return next_state, reward, done
 
 
-    def render(self, reward):
+    def render(self, reward, done = False):
         """Render the 3D world and UI."""
         self.screen.fill(BLACK)
         self.ground.draw_premium(self.screen, self.camera)
         self.ground.draw_axes(self.screen, self.camera)
         self.quadruped.draw_premium(self.screen, self.camera)
-        self.render_ui(reward)
+        self.render_ui(reward, done)
         pygame.display.flip()
     
     def get_state(self):
@@ -194,7 +219,7 @@ class QuadrupedEnv:
         state = self.quadruped.get_state()
         return state
 
-    def render_ui(self, reward):
+    def render_ui(self, reward, done = False):
         """Render the UI overlays (info and instructions)."""
         # Info texts
         pos_text = f"Position: ({self.quadruped.position[0]:.2f}, {self.quadruped.position[1]:.2f}, {self.quadruped.position[2]:.2f})"
@@ -214,6 +239,7 @@ class QuadrupedEnv:
             f"BL({self.quadruped.elbow_angles[3]:.2f})"
         )
         reward_text = f"Récompense: {reward:.2f}"
+        done_text = f"Terminé ? {done}"
         surfaces = [
             self.font.render(pos_text, True, WHITE),
             self.font.render(vel_text, True, WHITE),
@@ -222,6 +248,7 @@ class QuadrupedEnv:
             self.font.render(shoulder_text, True, WHITE),
             self.font.render(elbow_text, True, WHITE),
             self.font.render(reward_text, True, WHITE),
+            self.font.render(done_text, True, WHITE),
         ]
         for i, surf in enumerate(surfaces):
             self.screen.blit(surf, (10, 10 + i * 25))
