@@ -77,3 +77,56 @@ class Camera3D:
     def go_right(self, speed):
         self.position[0] += speed * math.cos(self.rotation[1])
         self.position[2] -= speed * math.sin(self.rotation[1])
+
+    def go_up(self, speed):
+        self.position[1] += speed
+
+    def go_down(self, speed):
+        self.position[1] -= speed
+
+    def yaw_left(self, speed):
+        self.rotation[1] -= speed
+
+    def yaw_right(self, speed):
+        self.rotation[1] += speed
+
+    def pitch_up(self, speed):
+        self.rotation[0] -= speed
+
+    def pitch_down(self, speed):
+        self.rotation[0] += speed
+
+    def update_camera(self, action_idx, camera_speed=0.1, rotation_speed=0.02):
+        """
+        Update camera position or rotation based on action index:
+        0: z (forward)
+        1: s (backward)
+        2: q (left)
+        3: d (right)
+        4: e (up)
+        5: a (down)
+        6: left (yaw left)
+        7: right (yaw right)
+        8: up (pitch up)
+        9: down (pitch down)
+        """
+        if action_idx == 0:
+            self.go_straight(camera_speed)
+        elif action_idx == 1:
+            self.go_backward(camera_speed)
+        elif action_idx == 2:
+            self.go_left(camera_speed)
+        elif action_idx == 3:
+            self.go_right(camera_speed)
+        elif action_idx == 4:
+            self.go_up(camera_speed)
+        elif action_idx == 5:
+            self.go_down(camera_speed)
+        elif action_idx == 6:
+            self.yaw_left(rotation_speed)
+        elif action_idx == 7:
+            self.yaw_right(rotation_speed)
+        elif action_idx == 8:
+            self.pitch_up(rotation_speed)
+        elif action_idx == 9:
+            self.pitch_down(rotation_speed)

@@ -60,7 +60,7 @@ class QuadrupedCriticModel(nn.Module):
         • tête A(s,a)       → (batch, num_actions) - une pour chaque action
         • Q(s,a)=V+A-mean(A)
     """
-    def __init__(self, input_dim, output_dim, nhead=4, num_layers=4, dim_feedforward=512):
+    def __init__(self, input_dim, output_dim, dim_feedforward=512):
         super().__init__()
 
         self.seq_1 = nn.Sequential(

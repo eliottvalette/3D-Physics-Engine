@@ -118,9 +118,9 @@ class QuadrupedEnv:
             camera_actions[6] = 1
         if keys[K_RIGHT]:
             camera_actions[7] = 1
-        if keys[K_UP]:
-            camera_actions[8] = 1
         if keys[K_DOWN]:
+            camera_actions[8] = 1
+        if keys[K_UP]:
             camera_actions[9] = 1
 
         return camera_actions
@@ -165,7 +165,7 @@ class QuadrupedEnv:
         # Update camera
         for idx, action in enumerate(camera_actions):
             if action:
-                self.camera.update_camera(idx)
+                self.camera.update_camera(idx, self.camera_speed, self.rotation_speed)
         
         # Reset quadruped
         if reset_actions[0]:
@@ -190,7 +190,8 @@ class QuadrupedEnv:
     
     def get_state(self):
         """Get the current state of the quadruped."""
-        return self.quadruped.get_state()
+        state = self.quadruped.get_state()
+        return state
 
     def render_ui(self, reward):
         """Render the UI overlays (info and instructions)."""

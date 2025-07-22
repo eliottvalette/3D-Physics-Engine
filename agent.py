@@ -106,8 +106,14 @@ class QuadrupedAgent:
             chosen_actions = [1 if prob > 0.5 else 0 for prob in action_probs]
             if DEBUG_RL_AGENT:
                 print(f"[AGENT] Action choisie par le modèle actuel en train d'être entrainé (epsilon-greedy)")
-                    
-        return chosen_actions, action_probs
+
+        shoulder_actions = chosen_actions[:4]
+        elbow_actions = chosen_actions[4:]
+        if DEBUG_RL_AGENT:
+            print(f"[AGENT] shoulder_actions : {shoulder_actions}")
+            print(f"[AGENT] elbow_actions : {elbow_actions}")
+
+        return shoulder_actions, elbow_actions
 
     def remember(self, state, action_probs, reward, done, next_state):
         """
@@ -169,7 +175,7 @@ class QuadrupedAgent:
             next_state_values = q_next.max(dim=1).values      # max_a' Q_target(s',a') => (batch_size, 1)
         
         # Obtenir la Q-value pour l'action choisie
-        chosen_action_q_values = q_values.gather(1, action_probs_tensor.unsqueeze(1)).squeeze(1) # Q(s,a) => (batch_size, 1)
+        chosen_action_q_values = (q_values * action_probs_tensor).sum(dim=1)
 
         # Calculer la cible TD et l'avantage
         td_targets = rewards_tensor + self.gamma * next_state_values * (1 - dones_tensor)     # td_target = r + γ·maxₐ′ Q_target(s′, a′)
@@ -193,8 +199,9 @@ class QuadrupedAgent:
         # Perte de l'acteur: utiliser l'avantage pour guider la politique
         # On veut maximiser log(π(a|s)) * avantage, donc minimiser le négatif
         log_probs = torch.log(action_probs.clamp(min=1e-8))
-        # Récupérer les log-probs pour les actions choisies
-        action_log_probs = log_probs.gather(1, action_probs_tensor.unsqueeze(1)).squeeze(1)
+        # Récupérer les log-probs pour les actions choisies (multi-binaire)
+        # action_probs_tensor: (batch_size, num_actions), log_probs: (batch_size, num_actions)
+        action_log_probs = (log_probs * action_probs_tensor).sum(dim=1)
         # Politique guidée par l'avantage
         policy_loss = -(action_log_probs * advantages.detach()).mean()
         

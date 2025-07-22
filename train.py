@@ -43,22 +43,23 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
         state = env.get_state()
 
         # Prédiction avec une inférence classique du modèle
-        chosen_actions, action_probs = agent.get_action(state = state, epsilon = epsilon)
+        shoulder_actions, elbow_actions = agent.get_action(state = state, epsilon = epsilon)
         
         if DEBUG_RL_TRAIN:
             print(f"[TRAIN] state : {state}")
-            print(f"[TRAIN] action_probs : {action_probs}")
-            print(f"[TRAIN] chosen_actions : {chosen_actions}")
+            print(f"[TRAIN] shoulder_actions : {shoulder_actions}")
+            print(f"[TRAIN] elbow_actions : {elbow_actions}")
         
         review_state = env.get_state()
         if state.tolist() != review_state.tolist():
             raise ValueError(f"[TRAIN] state != review_state => {state.tolist()} != {review_state.tolist()}")
 
         # Exécuter l'action dans l'environnement
-        next_state, reward = env.step(chosen_actions)
+        next_state, reward = env.step(shoulder_actions, elbow_actions)
 
         # Stocker l'expérience
         done = step == MAX_STEPS - 1
+        action_probs = shoulder_actions + elbow_actions
         agent.remember(state, action_probs, reward, done, next_state)
 
         data_collector.add_state(state)

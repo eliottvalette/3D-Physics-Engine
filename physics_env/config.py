@@ -46,13 +46,13 @@ DEBUG_CONTACT = False
 
 # ----- Debug RL Training --------------------------------------
 DEBUG_RL_TRAIN = True
-DEBUG_RL_MODEL = True
-DEBUG_RL_AGENT = True
-DEBUG_RL_VIZ = True
+DEBUG_RL_MODEL = False
+DEBUG_RL_AGENT = False
+DEBUG_RL_VIZ = False
 
 # ----- RL Training Config --------------------------------------
 EPISODES = 1000
-MAX_STEPS = 1000
+MAX_STEPS = 100
 
 START_EPS = 1.0
 EPS_DECAY = 0.995
@@ -63,11 +63,10 @@ SAVE_INTERVAL = 100
 
 GAMMA = 0.99
 ALPHA = 0.001
-STATE_SIZE = 24
-ACTION_SIZE = 16
+STATE_SIZE = 17
+ACTION_SIZE = 8
 
 RENDERING = True
-
 
 def set_seed(seed=42):
     rd.seed(seed)

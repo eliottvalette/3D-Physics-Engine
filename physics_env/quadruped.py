@@ -184,12 +184,12 @@ class Quadruped:
     
     def get_state(self):
         """Get the current state of the quadruped."""
-        vectrices = np.array(self.get_vertices()).flatten()
+        position = self.position
         velocity = self.velocity
         rotation = self.rotation
         shoulder_angles = self.shoulder_angles
         elbow_angles = self.elbow_angles
-        state = np.concatenate([vectrices, velocity, rotation, shoulder_angles, elbow_angles])
+        state = np.concatenate([position, velocity, rotation, shoulder_angles, elbow_angles])
         return state
     
     def draw(self, screen: pygame.Surface, camera: Camera3D):
