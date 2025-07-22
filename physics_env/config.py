@@ -45,21 +45,21 @@ STATIC_FRICTION_CAP  = 50.0     # impulsion maximale transmise au quadruped
 DEBUG_CONTACT = False       
 
 # ----- Debug RL Training --------------------------------------
-DEBUG_RL_TRAIN = True
+DEBUG_RL_TRAIN = False
 DEBUG_RL_MODEL = False
 DEBUG_RL_AGENT = False
 DEBUG_RL_VIZ = False
 
 # ----- RL Training Config --------------------------------------
 EPISODES = 1000
-MAX_STEPS = 100
+MAX_STEPS = 250
 
 START_EPS = 1.0
 EPS_DECAY = 0.995
 EPS_MIN = 0.01
 
-PLOT_INTERVAL = 10
-SAVE_INTERVAL = 100
+PLOT_INTERVAL = 100
+SAVE_INTERVAL = 10
 
 GAMMA = 0.99
 ALPHA = 0.001

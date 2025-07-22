@@ -190,7 +190,7 @@ class Quadruped:
         shoulder_angles = self.shoulder_angles
         elbow_angles = self.elbow_angles
         state = np.concatenate([position, velocity, rotation, shoulder_angles, elbow_angles])
-        return state
+        return state.tolist()
     
     def draw(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le quadruped 3D avec projection et profondeur (arêtes seulement)"""        

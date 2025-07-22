@@ -39,7 +39,7 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
 
     #### Boucle principale du jeu ####
     for step in range(MAX_STEPS):
-        # Récupération du joueur actuel et mise à jour des boutons   
+        # Récupération de l'état actuel
         state = env.get_state()
 
         # Prédiction avec une inférence classique du modèle
@@ -49,17 +49,13 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
             print(f"[TRAIN] state : {state}")
             print(f"[TRAIN] shoulder_actions : {shoulder_actions}")
             print(f"[TRAIN] elbow_actions : {elbow_actions}")
-        
-        review_state = env.get_state()
-        if state.tolist() != review_state.tolist():
-            raise ValueError(f"[TRAIN] state != review_state => {state.tolist()} != {review_state.tolist()}")
 
         # Exécuter l'action dans l'environnement
         next_state, reward = env.step(shoulder_actions, elbow_actions)
 
         # Stocker l'expérience
         done = step == MAX_STEPS - 1
-        action_probs = shoulder_actions + elbow_actions
+        action_probs = np.concatenate([shoulder_actions, elbow_actions])
         agent.remember(state, action_probs, reward, done, next_state)
 
         data_collector.add_state(state)
@@ -117,13 +113,14 @@ def main_training_loop(agent: QuadrupedAgent, episodes: int, rendering: bool, re
             print(f"[TRAIN] Time taken: {time.time() - start_time:.2f} seconds")
             
         # Save models at end of training
-        if episode == episodes - 1:
+        if episode == episodes - 1 :
             save_models(agent, episode)
             print("[TRAIN] Generating visualization...")
             data_collector.force_visualization()
 
     except Exception as e:
         print(f"[TRAIN] An error occurred: {e}")
+        traceback.print_exc()
         save_models(agent, episode)
         print("[TRAIN] Generating visualization...")
         data_collector.force_visualization()

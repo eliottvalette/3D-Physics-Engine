@@ -41,7 +41,7 @@ class QuadrupedActorModel(nn.Module):
             nn.GELU(),
             nn.LayerNorm(dim_feedforward),
             nn.Linear(dim_feedforward, output_dim),
-            nn.Softmax(dim=-1)
+            nn.Tanh()
         )
 
     def forward(self, x):

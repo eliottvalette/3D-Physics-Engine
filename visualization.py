@@ -60,12 +60,12 @@ class DataCollector:
             save_interval=save_interval
         )
     
-    def add_state(self, state_info):
+    def add_state(self, state):
         """
         Ajoute un état à l'épisode courant.
         """
 
-        self.current_episode_states.append(state_info.copy())  # Use copy to ensure no reference issues
+        self.current_episode_states.append(state.copy())  # Use copy to ensure no reference issues
     
     def add_metrics(self, episode_metrics):
         """

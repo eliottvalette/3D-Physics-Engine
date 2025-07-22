@@ -90,25 +90,22 @@ class QuadrupedAgent:
             raise TypeError(f"[AGENT] state doit être une liste ou un numpy array (reçu: {type(state)})")
     
         if np.random.rand() < epsilon:
-            action_probs = np.random.rand(self.action_size)
-            chosen_actions = [1 if prob > 0.5 else 0 for prob in action_probs]
+            actions_probs = (torch.rand(self.action_size, device=self.device) * 2 - 1)
             if DEBUG_RL_AGENT:
                 print(f"[AGENT] Action choisie aléatoirement parmi les actions valides (epsilon-greedy)")
         else:
-            # Convertir les arrays numpy en tenseurs PyTorch
-            state_tensors = [torch.from_numpy(s).float().to(self.device) for s in state]
-            state_tensor = torch.stack(state_tensors).unsqueeze(0)
+            # Convertir l'array numpy en tenseur PyTorch
+            state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             
             self.actor_model.eval()
             with torch.no_grad():
-                action_probs = self.actor_model(state_tensor).cpu().numpy().flatten()
+                actions_probs = self.actor_model(state_tensor)
             
-            chosen_actions = [1 if prob > 0.5 else 0 for prob in action_probs]
             if DEBUG_RL_AGENT:
                 print(f"[AGENT] Action choisie par le modèle actuel en train d'être entrainé (epsilon-greedy)")
 
-        shoulder_actions = chosen_actions[:4]
-        elbow_actions = chosen_actions[4:]
+        shoulder_actions = actions_probs[:4]
+        elbow_actions = actions_probs[4:]
         if DEBUG_RL_AGENT:
             print(f"[AGENT] shoulder_actions : {shoulder_actions}")
             print(f"[AGENT] elbow_actions : {elbow_actions}")
@@ -159,11 +156,11 @@ class QuadrupedAgent:
         state, action_probs, rewards, dones, next_state = zip(*batch)
 
         # Convertir les actions et récompenses en tenseurs
-        action_probs_tensor = torch.tensor([a for a in action_probs], device=self.device)
-        rewards_tensor = torch.tensor(rewards, dtype=torch.float, device=self.device)
-        dones_tensor = torch.tensor(dones, dtype=torch.float, device=self.device)
-        states_tensor = torch.stack([torch.from_numpy(s).float() for s in state])
-        next_states_tensor = torch.stack([torch.from_numpy(s).float() for s in next_state])
+        action_probs_tensor = torch.tensor([a for a in action_probs], dtype=torch.float32, device=self.device)
+        rewards_tensor = torch.tensor(rewards, dtype=torch.float32, device=self.device)
+        dones_tensor = torch.tensor(dones, dtype=torch.float32, device=self.device)
+        states_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+        next_states_tensor = torch.tensor(next_state, dtype=torch.float32, device=self.device)
 
         # Passage en avant à travers le réseau
         action_probs = self.actor_model(states_tensor)

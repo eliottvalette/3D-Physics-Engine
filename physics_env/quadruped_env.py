@@ -156,11 +156,9 @@ class QuadrupedEnv:
 
         # Update all Shoulder and Elbow angles
         for idx, action in enumerate(shoulder_actions):
-            if action:
-                self.quadruped.adjust_shoulder_angle(idx, SHOULDER_DELTA)
+            self.quadruped.adjust_shoulder_angle(idx, SHOULDER_DELTA * action)
         for idx, action in enumerate(elbow_actions):
-            if action:
-                self.quadruped.adjust_elbow_angle(idx, ELBOW_DELTA)
+            self.quadruped.adjust_elbow_angle(idx, ELBOW_DELTA * action)
 
         # Update camera
         for idx, action in enumerate(camera_actions):
@@ -172,6 +170,9 @@ class QuadrupedEnv:
             self.quadruped.reset_random()
         if reset_actions[1]:
             self.quadruped.reset()
+
+        # Update quadruped
+        update_quadruped(self.quadruped)
 
         next_state = self.get_state()
         reward = 0.0
