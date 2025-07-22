@@ -40,6 +40,7 @@ class QuadrupedEnv:
         "P - Afficher les sommets",
         "Échap - Quitter"
     ]
+    CIRCLE_RADII = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     def __init__(self, rendering=True):
         """Initialize the game, Pygame, and world objects."""
@@ -62,8 +63,8 @@ class QuadrupedEnv:
         self.rotation_speed = 0.02
         self.font = pygame.font.Font(None, 24)
 
-        # --- suivi du progrès pour la reward ---
-        self.prev_body_x = self.quadruped.position[0]
+        self.circle_radii   = self.CIRCLE_RADII
+        self.circles_passed = set()         # stocke les rayons déjà comptés
 
     def run(self):
         """Main game loop."""
@@ -171,37 +172,28 @@ class QuadrupedEnv:
         # Reset quadruped
         if reset_actions[0]:
             self.quadruped.reset_random()
+            self.circles_passed.clear()
         if reset_actions[1]:
             self.quadruped.reset()
+            self.circles_passed.clear()
 
         # Update quadruped
         update_quadruped(self.quadruped)
 
         next_state = self.get_state()
-        
         # -----------------------------------------------------------------
-        # 1) Progrès vers l’avant (max : +1 par step si on avance d’un « mètre »)
-        forward_progress = self.quadruped.position[0] - self.prev_body_x
-        self.prev_body_x = self.quadruped.position[0]
+        # distance horizontale à l’origine
+        radius = np.hypot(self.quadruped.position[0],
+                          self.quadruped.position[2])
 
-        # 2) Stabilité : pénalise l’inclinaison et les grands bonds
-        tilt_penalty = abs(self.quadruped.rotation[0]) + abs(self.quadruped.rotation[2])
-        height_penalty = max(0.0, 0.5 - self.quadruped.position[1]) * 5   # tombe ? → gros malus
-
-        # 3) Énergie : limite les gestes inutiles
-        energy_penalty = 0.001 * (np.square(shoulder_actions).sum() +
-                                  np.square(elbow_actions).sum())
-
-        # 4) Reward finale
-        reward = (
-            1.0 * forward_progress          # aller de l’avant
-            - 0.2 * tilt_penalty            # rester droit
-            - energy_penalty                # consommer peu
-            - height_penalty                # ne pas tomber
-        )
+        reward = 0.0
+        for r in self.circle_radii:
+            if radius >= r and r not in self.circles_passed:
+                reward += 10.0              # +10 par cercle, une seule fois
+                self.circles_passed.add(r)
         # -----------------------------------------------------------------
 
-        done = bool(self.quadruped.position[1] < 1.2)  # corps touche (quasi) le sol
+        done = bool(self.quadruped.position[1] < 1.75)   # corps trop bas
         return next_state, reward, done
 
 
@@ -210,6 +202,7 @@ class QuadrupedEnv:
         self.screen.fill(BLACK)
         self.ground.draw_premium(self.screen, self.camera)
         self.ground.draw_axes(self.screen, self.camera)
+        self.draw_checkpoint_circles()
         self.quadruped.draw_premium(self.screen, self.camera)
         self.render_ui(reward, done)
         pygame.display.flip()
@@ -240,6 +233,7 @@ class QuadrupedEnv:
         )
         reward_text = f"Récompense: {reward:.2f}"
         done_text = f"Terminé ? {done}"
+        score_text = f"Score cercles: {len(self.circles_passed)}"
         surfaces = [
             self.font.render(pos_text, True, WHITE),
             self.font.render(vel_text, True, WHITE),
@@ -249,6 +243,7 @@ class QuadrupedEnv:
             self.font.render(elbow_text, True, WHITE),
             self.font.render(reward_text, True, WHITE),
             self.font.render(done_text, True, WHITE),
+            self.font.render(score_text, True, WHITE),
         ]
         for i, surf in enumerate(surfaces):
             self.screen.blit(surf, (10, 10 + i * 25))
@@ -256,6 +251,20 @@ class QuadrupedEnv:
         for i, instruction in enumerate(self.INSTRUCTIONS):
             inst_surface = self.font.render(instruction, True, GRAY)
             self.screen.blit(inst_surface, (10, WINDOW_HEIGHT - 140 + i * 20))
+
+    def draw_checkpoint_circles(self):
+        """Dessine les cercles de récompense au sol."""
+        segments = 36
+        for r in self.circle_radii:
+            pts = []
+            for theta in np.linspace(0, 2*np.pi, segments, endpoint=False):
+                world_pt = np.array([r*np.cos(theta), 0.0, r*np.sin(theta)])
+                proj = self.camera.project_3d_to_2d(world_pt)
+                if proj:                 # point visible
+                    pts.append(proj[:2])
+            if len(pts) > 1:
+                color = (0, 255, 0) if r in self.circles_passed else (100, 100, 100)
+                pygame.draw.lines(self.screen, color, True, pts, 1)
 
 if __name__ == "__main__":
     game = QuadrupedEnv()

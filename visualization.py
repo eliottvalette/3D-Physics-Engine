@@ -217,6 +217,7 @@ class Visualizer:
             ('actor_loss', 'Actor Loss (Log-Prob * Advantage)', None, None),
             ('entropy', 'Entropie', None, None),
             ('total_loss', 'Actor Loss + Critic Loss', None, None),
+            ('epsilon', 'Epsilon', 1, 0),
         ]
         for idx, (metric_name, display_name, y_max, y_min) in enumerate(metrics_to_plot):
             ax = plt.subplot(2, 3, idx + 1)

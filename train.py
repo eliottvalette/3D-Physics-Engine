@@ -33,6 +33,7 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
     """
 
     env.quadruped.reset()
+    env.circles_passed.clear()
 
     if DEBUG_RL_TRAIN:
         print(f"[TRAIN] Début de la main")
@@ -64,7 +65,7 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
 
         # Training mid-episode car ils sont très longs
         if step % 5 == 0:
-            metrics = agent.train_model()
+            metrics = agent.train_model(epsilon)
             data_collector.add_metrics(metrics)
         
         if done:
@@ -72,7 +73,7 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
 
     print(f"\n[TRAIN] === Résultats de l'épisode [{episode + 1}/{EPISODES}] ===")
 
-    metrics = agent.train_model()
+    metrics = agent.train_model(epsilon)
     data_collector.add_metrics(metrics)
     data_collector.save_episode(episode)
 

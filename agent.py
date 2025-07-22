@@ -51,7 +51,7 @@ class QuadrupedAgent:
         self.critic_loss_coeff = 0.015
 
         # Utilisation du modèle Transformer qui attend une séquence d'inputs
-        self.actor_model = QuadrupedActorModel(input_dim=state_size, output_dim=action_size).to(device)
+        self.actor_model = QuadrupedActorModel(input_dim=state_size, output_dim=action_size * 3).to(device)
         self.critic_model = QuadrupedCriticModel(input_dim=state_size).to(device)
         self.critic_target = QuadrupedCriticModel(input_dim=state_size).to(device)
         self.critic_target.load_state_dict(self.critic_model.state_dict())
@@ -84,31 +84,48 @@ class QuadrupedAgent:
 
     def get_action(self, state, epsilon=0.0):
         """
-        Sélectionne une action continue selon la politique (tanh ∈ [‑1, 1]).
+        Sélectionne une action continue selon la politique (tanh ∈ [‑1, 1]), avec exploration :
+        - epsilon : full random sur [-1,1]
+        - sinon : μ + bruit gaussien, puis tanh
         Retourne (shoulder_actions, elbow_actions, actions_pred) où actions_pred est le vecteur complet (8,).
         """
+        import numpy as np
         if not isinstance(state, (list, np.ndarray)):
             raise TypeError(f"[AGENT] state doit être une liste ou un numpy array (reçu: {type(state)})")
-    
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
-        self.actor_model.eval()
-        with torch.no_grad():
-            actions_pred = self.actor_model(state_tensor)
-        actions_pred_np = actions_pred.cpu().numpy()
-        shoulder_actions = actions_pred_np[:4]
-        elbow_actions = actions_pred_np[4:]
+        
+        state_t = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(0)        # (1, state)
+
+        if np.random.rand() < epsilon:
+            actions_idx = torch.randint(0, 3, (self.action_size,), device=self.device)              # (8,)
+            actions_idx = (actions_idx - 1).float() # map [0,1,2] → [-1,0,1]
+            
+            if DEBUG_RL_AGENT:
+                print(f"[AGENT] random actions_idx : {actions_idx}")
+
+        else:
+            with torch.no_grad():
+                actions_idx, _ = self.actor_model(state_t)          # (1, 8)
+
+            if DEBUG_RL_AGENT:
+                print(f"[AGENT] no random actions_idx : {actions_idx}")
+
+        shoulder_actions = actions_idx[:4].cpu().numpy()
+        elbow_actions = actions_idx[4:].cpu().numpy()
+
         if DEBUG_RL_AGENT:
+            print(f"[AGENT] actions_idx : {actions_idx}")
             print(f"[AGENT] shoulder_actions : {shoulder_actions}")
             print(f"[AGENT] elbow_actions : {elbow_actions}")
-        return shoulder_actions, elbow_actions, actions_pred
 
-    def remember(self, state, action_probs, reward, done, next_state):
+        return shoulder_actions, elbow_actions, actions_idx
+
+    def remember(self, state, action_idx, reward, done, next_state):
         """
         Stocke une transition dans la mémoire de replay, cette transition sera utilisée pour l'entrainement du model
         """
-        self.memory.append((state, action_probs, reward, done, next_state))
+        self.memory.append((state, action_idx, reward, done, next_state))
 
-    def train_model(self, batch_size=32):
+    def train_model(self, epsilon, batch_size=32):
         """
         Une étape d'optimisation sur un mini-batch.
 
@@ -136,17 +153,18 @@ class QuadrupedAgent:
                 'critic_loss': None,
                 'actor_loss': None,
                 'entropy': None,
-                'total_loss': None
+                'total_loss': None,
+                'epsilon': epsilon
             }
 
         batch = random.sample(self.memory, batch_size)
-        state, action_probs, rewards, dones, next_state = zip(*batch)
+        state, action_idx_b, rewards, dones, next_state = zip(*batch)
 
         rewards_tensor = torch.tensor(rewards, dtype=torch.float32, device=self.device)
         dones_tensor = torch.tensor(dones, dtype=torch.float32, device=self.device)
         states_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
         next_states_tensor = torch.tensor(next_state, dtype=torch.float32, device=self.device)
-        action_tensor = torch.stack(action_probs).to(self.device)
+        action_idx_t  = torch.stack(action_idx_b).to(self.device)       # (B, 8) entiers
 
         # Critic forward
         state_values = self.critic_model(states_tensor).squeeze(1)
@@ -158,14 +176,14 @@ class QuadrupedAgent:
 
         critic_loss = F.mse_loss(state_values, td_targets)
 
-        # Actor: log-prob d'une gaussienne diag centrée sur l'action prédite
-        mu = self.actor_model(states_tensor)
-        log_std = torch.zeros_like(mu)  # std fixée à 1 pour chaque action
-        std = log_std.clamp(-4, 2).exp() + 1e-6
-        dist = torch.distributions.Normal(mu, std)
-        logp_actions = dist.log_prob(action_tensor).sum(-1)
-        actor_loss = -(advantages * logp_actions).mean()
-        entropy = dist.entropy().sum(-1).mean()
+        _, probs = self.actor_model(states_tensor)                      # (B, 8, 3)
+        dist     = torch.distributions.Categorical(probs=probs)
+
+        logp_actions = dist.log_prob(action_idx_t).sum(-1)              # somme sur les 8 articulations
+        entropy      = dist.entropy().sum(-1).mean()
+
+        actor_loss = -(advantages * logp_actions).mean() \
+                     - self.entropy_coeff * entropy
 
         # Optim Critic
         self.critic_optimizer.zero_grad()
@@ -188,6 +206,7 @@ class QuadrupedAgent:
             'critic_loss': critic_loss.item(),
             'actor_loss': actor_loss.item(),
             'entropy': entropy.item(),
-            'total_loss': actor_loss.item() + critic_loss.item()
+            'total_loss': actor_loss.item() + critic_loss.item(),
+            'epsilon': epsilon
         }
         return metrics
