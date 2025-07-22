@@ -47,7 +47,7 @@ DEBUG_CONTACT = False
 # ----- Debug RL Training --------------------------------------
 DEBUG_RL_TRAIN = False
 DEBUG_RL_MODEL = True
-DEBUG_RL_AGENT = True
+DEBUG_RL_AGENT = False
 DEBUG_RL_VIZ = False
 
 # ----- RL Training Config --------------------------------------
@@ -63,7 +63,7 @@ SAVE_INTERVAL = 10
 
 GAMMA = 0.99
 ALPHA = 0.001
-STATE_SIZE = 17
+STATE_SIZE = 31
 ACTION_SIZE = 8
 
 RENDERING = True

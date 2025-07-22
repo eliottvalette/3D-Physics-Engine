@@ -4,8 +4,8 @@ import numpy as np
 from .config import *
 class Camera3D:
     def __init__(self):
-        self.position = np.array([0.0, 5.0, -10.0])
-        self.rotation = np.array([0.0, 0.0, 0.0])  # pitch, yaw, roll (pitch = on leve et on baisse la tete, yaw = on tourne la tete à droite et à gauche, roll = on tourne le corps à droite et à gauche)
+        self.position = np.array([-9.5, 8.8, -8.6])
+        self.rotation = np.array([-0.5, 1.0, -0.5])  # pitch, yaw, roll (pitch = on leve et on baisse la tete, yaw = on tourne la tete à droite et à gauche, roll = on tourne le corps à droite et à gauche)
         self.fov = math.pi / 2  # 90 degrés
         self.near = 0.1
         

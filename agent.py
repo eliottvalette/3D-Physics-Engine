@@ -87,37 +87,39 @@ class QuadrupedAgent:
         Sélectionne une action continue selon la politique (tanh ∈ [‑1, 1]), avec exploration :
         - epsilon : full random sur [-1,1]
         - sinon : μ + bruit gaussien, puis tanh
-        Retourne (shoulder_actions, elbow_actions, actions_pred) où actions_pred est le vecteur complet (8,).
+        Retourne (shoulder_actions, elbow_actions, action_idx) où action_idx est le vecteur d'indices (8,) dans {0,1,2}.
         """
         import numpy as np
         if not isinstance(state, (list, np.ndarray)):
             raise TypeError(f"[AGENT] state doit être une liste ou un numpy array (reçu: {type(state)})")
         
-        state_t = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(0)        # (1, state)
+        state_t = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(0)  # (1, state)
 
-        if np.random.rand() < epsilon:
-            actions_idx = torch.randint(0, 3, (self.action_size,), device=self.device)              # (8,)
-            actions_idx = (actions_idx - 1).float() # map [0,1,2] → [-1,0,1]
-            
+        if np.random.rand() < epsilon:  # FULL RANDOM
+            action_idx = torch.randint(0, 3, (self.action_size,), device=self.device)  # (8,) 0/1/2
             if DEBUG_RL_AGENT:
-                print(f"[AGENT] random actions_idx : {actions_idx}")
-
-        else:
+                print(f"[AGENT] random action_idx:", action_idx)
+                
+        else:  # POLICY
             with torch.no_grad():
-                actions_idx, _ = self.actor_model(state_t)          # (1, 8)
-
+                action_discrete, _ = self.actor_model(state_t)  # (-1,0,1) (1,8)
+            action_idx = (action_discrete.squeeze(0) + 1).long()  # → (8,) 0/1/2
             if DEBUG_RL_AGENT:
-                print(f"[AGENT] no random actions_idx : {actions_idx}")
+                print(f"[AGENT] policy action_idx:", action_idx)
 
-        shoulder_actions = actions_idx[:4].cpu().numpy()
-        elbow_actions = actions_idx[4:].cpu().numpy()
+        # --- mapping pour l’environnement ---
+        action_vec = (action_idx - 1).float()  # (-1,0,1)
+        actions_np = action_vec.cpu().numpy()  # (8,)
+        shoulder_actions = actions_np[:4]
+        elbow_actions = actions_np[4:]
 
         if DEBUG_RL_AGENT:
-            print(f"[AGENT] actions_idx : {actions_idx}")
+            print(f"[AGENT] actions_idx : {action_idx}")
             print(f"[AGENT] shoulder_actions : {shoulder_actions}")
             print(f"[AGENT] elbow_actions : {elbow_actions}")
 
-        return shoulder_actions, elbow_actions, actions_idx
+        # on stocke des INDICES int64 (shape (8,))
+        return shoulder_actions, elbow_actions, action_idx
 
     def remember(self, state, action_idx, reward, done, next_state):
         """
@@ -164,7 +166,7 @@ class QuadrupedAgent:
         dones_tensor = torch.tensor(dones, dtype=torch.float32, device=self.device)
         states_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
         next_states_tensor = torch.tensor(next_state, dtype=torch.float32, device=self.device)
-        action_idx_t  = torch.stack(action_idx_b).to(self.device)       # (B, 8) entiers
+        # action_idx_t  = torch.stack(action_idx_b).to(self.device)       # (B, 8) entiers
 
         # Critic forward
         state_values = self.critic_model(states_tensor).squeeze(1)
@@ -179,6 +181,7 @@ class QuadrupedAgent:
         _, probs = self.actor_model(states_tensor)                      # (B, 8, 3)
         dist     = torch.distributions.Categorical(probs=probs)
 
+        action_idx_t  = torch.stack([a.long() for a in action_idx_b]).to(self.device)
         logp_actions = dist.log_prob(action_idx_t).sum(-1)              # somme sur les 8 articulations
         entropy      = dist.entropy().sum(-1).mean()
 

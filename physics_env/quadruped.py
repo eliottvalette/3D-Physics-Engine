@@ -10,14 +10,14 @@ WINDOW_WIDTH = 1500
 WINDOW_HEIGHT = 800
 
 class Quadruped:
-    def __init__(self, position, vertices=None, vectrices_dict=None, rotation = np.array([0.0, 0.0, 0.0]), velocity = np.array([0.0, 0.0, 0.0]), color = (255, 255, 255)):
+    def __init__(self, position, vertices=None, vertices_dict=None, rotation = np.array([0.0, 0.0, 0.0]), velocity = np.array([0.0, 0.0, 0.0]), color = (255, 255, 255)):
         self.initial_position = position.copy()
         self.initial_velocity = velocity.copy()
         self.initial_rotation = np.array([0.0, 0.0, 0.0]).copy()
         self.initial_angular_velocity = np.array([0.0, 0.0, 0.0]).copy()
         self.initial_rotation = rotation.copy()
         self.initial_vertices = vertices.copy()
-        self.initial_vectrices_dict = copy.deepcopy(vectrices_dict)
+        self.initial_vertices_dict = copy.deepcopy(vertices_dict)
         self.color = color
 
         self.position = position # position en x, y, z du centre du quadruped
@@ -25,11 +25,11 @@ class Quadruped:
         self.rotation = rotation # rotation en radians
         self.angular_velocity = np.array([0.0, 0.0, 0.0])
         self.vertices = vertices.copy()
-        self.vectrices_dict = copy.deepcopy(vectrices_dict)
+        self.vertices_dict = copy.deepcopy(vertices_dict)
         
-        # Get shoulder and elbow positions from vectrices_dict if available
-        self.shoulder_positions = vectrices_dict.get('shoulder_positions', []) if vectrices_dict else []
-        self.elbow_positions = vectrices_dict.get('elbow_positions', []) if vectrices_dict else []
+        # Get shoulder and elbow positions from vertices_dict if available
+        self.shoulder_positions = vertices_dict.get('shoulder_positions', []) if vertices_dict else []
+        self.elbow_positions = vertices_dict.get('elbow_positions', []) if vertices_dict else []
 
         # Articulations (épaules et coudes) - angles en radians
         # Épaules: 0=Front Right, 1=Front Left, 2=Back Right, 3=Back Left
@@ -159,8 +159,8 @@ class Quadruped:
         
         return rotated_vertices
     
-    def get_vectrices_dict(self):
-        return self.vectrices_dict
+    def get_vertices_dict(self):
+        return self.vertices_dict
 
     def set_shoulder_angle(self, leg_index, angle):
         """Définit l'angle de l'épaule pour une patte donnée (0-3)"""
@@ -183,15 +183,51 @@ class Quadruped:
         self.rotated_vertices = self.get_vertices()
     
     def get_state(self):
-        """Get the current state of the quadruped."""
-        position = self.position
-        velocity = self.velocity
-        rotation = self.rotation
-        shoulder_angles = self.shoulder_angles
-        elbow_angles = self.elbow_angles
-        state = np.concatenate([position, velocity, rotation, shoulder_angles, elbow_angles])
+        """
+        Retourne l’état étendu du quadruped.
+        
+        """
+        # infos de base
+        base = np.concatenate([
+            self.position,
+            self.velocity,
+            self.rotation,
+            self.shoulder_angles,
+            self.elbow_angles
+        ])
+
+        # 1. Update les sommets
+        vertices = self.rotated_vertices  # liste de np.array([x,y,z])
+
+        # 2. Les min/max X Y Z du Body
+        body_vertices = vertices[0:8]
+        body_xs = [v[0] for v in body_vertices]
+        body_ys = [v[1] for v in body_vertices]
+        body_zs = [v[2] for v in body_vertices]
+        body_min_x, body_max_x = min(body_xs), max(body_xs)
+        body_min_y, body_max_y = min(body_ys), max(body_ys)
+        body_min_z, body_max_z = min(body_zs), max(body_zs)
+
+        body_limits = np.array([body_min_x, body_max_x, body_min_y, body_max_y, body_min_z, body_max_z])
+
+        # 3. min/max Y pour chaque patte (FR, FL, BR, BL)
+        min_max_y = []
+        for leg_idx in range(4):
+            upper_start = (1 + leg_idx) * 8        # bloc upper‑leg
+            lower_start = (5 + leg_idx) * 8        # bloc lower‑leg
+
+            # on met les 16 sommets dans une seule liste
+            leg_vertices = (
+                vertices[upper_start : upper_start + 8] +
+                vertices[lower_start : lower_start + 8]
+            )
+            ys = [v[1] for v in leg_vertices]
+            min_max_y.extend([min(ys), max(ys)])
+
+        # 4. état final
+        state = np.concatenate([base, body_limits, np.array(min_max_y, dtype=np.float32)])
         return state.tolist()
-    
+
     def draw(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le quadruped 3D avec projection et profondeur (arêtes seulement)"""        
         # Projeter tous les sommets

@@ -10,7 +10,7 @@ UPPER_LEG_HEIGHT = 1.5
 LOWER_LEG_LENGTH = 0.6
 LOWER_LEG_WIDTH = 0.6
 LOWER_LEG_HEIGHT = 2.0
-Y_OFFSET = 0.0
+Y_OFFSET = -2.5
 
 def create_body(length, width, height, y_offset):
     """

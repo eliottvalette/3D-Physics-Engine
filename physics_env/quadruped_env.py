@@ -1,4 +1,5 @@
 # quadruped_env.py
+import time
 import pygame
 import numpy as np
 from pygame.locals import *
@@ -57,7 +58,7 @@ class QuadrupedEnv:
         self.quadruped = Quadruped(
             position=np.array([0.0, 5.5, 0.0]),
             vertices=get_quadruped_vertices(),
-            vectrices_dict=self.quadruped_vertices_dict
+            vertices_dict=self.quadruped_vertices_dict
         )
         self.camera_speed = 0.1
         self.rotation_speed = 0.02
@@ -81,7 +82,8 @@ class QuadrupedEnv:
                 reset_actions[1] = 1
 
             if keys[K_p]:
-                print(self.quadruped.get_vertices())
+                print(f"state: {self.quadruped.get_state()}, len: {len(self.quadruped.get_state())}")
+                time.sleep(0.1)
             
             _, reward, done = self.step(shoulder_actions, elbow_actions, camera_actions, reset_actions)
 
@@ -181,7 +183,7 @@ class QuadrupedEnv:
         update_quadruped(self.quadruped)
 
         next_state = self.get_state()
-        # -----------------------------------------------------------------
+        # ---- REWARD ----------------------------------------------------- 
         # distance horizontale à l’origine
         radius = np.hypot(self.quadruped.position[0],
                           self.quadruped.position[2])
@@ -191,9 +193,12 @@ class QuadrupedEnv:
             if radius >= r and r not in self.circles_passed:
                 reward += 10.0              # +10 par cercle, une seule fois
                 self.circles_passed.add(r)
-        # -----------------------------------------------------------------
 
-        done = bool(self.quadruped.position[1] < 1.75)   # corps trop bas
+        done = bool(self.quadruped.position[1] < 4.0)   # corps trop bas
+        if done:
+           reward = -10.0
+        # -----------------------------------------------------------------
+        
         return next_state, reward, done
 
 

@@ -72,9 +72,10 @@ class QuadrupedActorModel(nn.Module):
         # map [0,1,2] → [-1,0,+1]
         actions   = (action_idx - 1).float()
 
-        if DEBUG_RL_MODEL and rd.random() < 0.1:
-            print(f"[ACTOR] probs mean={action_logits.mean():.3f}, std={action_logits.std():.3f}")
-            print(f"[ACTOR] actions : {actions[0]}")
+        if DEBUG_RL_MODEL and rd.random() < 0.01:
+            print(f"[MODEL] [ACTOR] probs mean={action_logits.mean():.3f}, std={action_logits.std():.3f}, min={action_logits.min():.3f}, max={action_logits.max():.3f}")
+            print(f"[MODEL] [ACTOR] action_logits : {action_logits[0]}")
+            print(f"[MODEL] [ACTOR] actions : {actions[0]}")
 
         return actions, probs
     
@@ -123,12 +124,12 @@ class QuadrupedCriticModel(nn.Module):
         x_3 = self.seq_3(x_2)
         
         if DEBUG_RL_MODEL and rd.random() < 0.02 :
-            print(f"[MODEL] Critic x_3 : mean = {x_3.mean()}, std = {x_3.std()}, min = {x_3.min()}, max = {x_3.max()}")
+            print(f"[MODEL] [CRITIC] x_3 : mean = {x_3.mean()}, std = {x_3.std()}, min = {x_3.min()}, max = {x_3.max()}")
 
         V = self.V_head(x_3)
 
         if DEBUG_RL_MODEL and rd.random() < 0.02:
-            print(f"[MODEL] Critic V : mean = {V.mean()}, std = {V.std()}, min = {V.min()}, max = {V.max()}")
+            print(f"[MODEL] [CRITIC] V : mean = {V.mean()}, std = {V.std()}, min = {V.min()}, max = {V.max()}")
 
         return V
 
