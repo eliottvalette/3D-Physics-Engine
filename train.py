@@ -55,16 +55,17 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
             raise ValueError(f"[TRAIN] state != review_state => {state.tolist()} != {review_state.tolist()}")
 
         # Exécuter l'action dans l'environnement
-        next_state, reward, done = env.step(chosen_actions)
+        next_state, reward = env.step(chosen_actions)
 
         # Stocker l'expérience
+        done = step == MAX_STEPS - 1
         agent.remember(state, action_probs, reward, done, next_state)
 
         data_collector.add_state(state)
     
         # Rendu graphique si activé
         if rendering and (step % render_every == 0):
-            env.render()
+            env.render(reward)
 
     print(f"\n[TRAIN] === Résultats de l'épisode [{episode + 1}/{EPISODES}] ===")
 

@@ -1,7 +1,7 @@
 # quadruped.py
 import numpy as np
 import pygame
-# from config import *
+from physics_env.config import *
 from .camera import Camera3D
 import copy
 import math
@@ -184,7 +184,7 @@ class Quadruped:
     
     def get_state(self):
         """Get the current state of the quadruped."""
-        vectrices = self.get_vertices()
+        vectrices = np.array(self.get_vertices()).flatten()
         velocity = self.velocity
         rotation = self.rotation
         shoulder_angles = self.shoulder_angles

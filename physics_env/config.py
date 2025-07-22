@@ -33,12 +33,16 @@ MAX_ANGULAR_VELOCITY = 5.0
 MAX_IMPULSE = 5.0
 MAX_AVERAGE_IMPULSE = 2.0
 
+# --- Angles d'articulations ---
+SHOULDER_DELTA = 0.05
+ELBOW_DELTA = 0.05
+
 # --- Contact / Friction ----------------------------------------------------
 SLIP_THRESHOLD = 0.05      # le pied reste « collé » tant que |v_t| < SLIP_THRESHOLD cm/s
 STATIC_FRICTION_CAP  = 50.0     # impulsion maximale transmise au quadruped
 
 # ----- Debug Physics Simulation --------------------------------------
-DEBUG_CONTACT = True       
+DEBUG_CONTACT = False       
 
 # ----- Debug RL Training --------------------------------------
 DEBUG_RL_TRAIN = True

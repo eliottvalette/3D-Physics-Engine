@@ -3,11 +3,11 @@ import pygame
 import numpy as np
 import math
 from pygame.locals import *
-from config import *
-from camera import Camera3D
-from cube import Cube3D
-from ground import Staircase
-from update_functions import *
+from physics_env.config import *
+from physics_env.camera import Camera3D
+from physics_env.cube import Cube3D
+from physics_env.ground import Staircase
+from physics_env.update_functions import *
     
 
 # --- Initialisation Pygame ---
