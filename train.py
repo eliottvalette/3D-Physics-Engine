@@ -53,7 +53,7 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
             print(f"[TRAIN] elbow_actions : {elbows}")
 
         # Exécuter l'action dans l'environnement
-        next_state, reward, done = env.step(shoulders, elbows)
+        next_state, reward, done, step_time = env.step(shoulders, elbows)
 
         # Stocker l'expérience
         agent.remember(state, action_vec, reward, done, next_state)
@@ -62,7 +62,7 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
     
         # Rendu graphique si activé
         if rendering and (episode % render_every == 0):
-            env.render(reward)
+            env.render(reward, done, step_time)
 
         # Training mid-episode car ils sont très longs
         if step % 5 == 0:

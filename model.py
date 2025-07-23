@@ -40,6 +40,7 @@ class QuadrupedActorModel(nn.Module):
         )
         self.action_head = nn.Sequential(
             nn.Linear(dim_feedforward, self.output_dim),
+            nn.LayerNorm(self.output_dim)
         )
 
     def forward(self, state, deterministic: bool = False):
@@ -113,6 +114,7 @@ class QuadrupedCriticModel(nn.Module):
             nn.GELU(),
             nn.LayerNorm(dim_feedforward),
             nn.Linear(dim_feedforward, 1)
+
         )
 
     def forward(self, input_tensor):

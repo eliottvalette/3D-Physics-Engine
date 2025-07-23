@@ -191,11 +191,13 @@ class QuadrupedAgent:
         # Optim Critic
         self.critic_optimizer.zero_grad()
         critic_loss.backward(retain_graph=True)
+        torch.nn.utils.clip_grad_norm_(self.critic_model.parameters(), max_norm=1.0)
         self.critic_optimizer.step()
 
         # Optim Actor
         self.optimizer.zero_grad()
         actor_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.actor_model.parameters(), max_norm=1.0)
         self.optimizer.step()
 
         # Polyak update

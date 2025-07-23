@@ -46,7 +46,7 @@ DEBUG_CONTACT = False
 
 # ----- Debug RL Training --------------------------------------
 DEBUG_RL_TRAIN = False
-DEBUG_RL_MODEL = False
+DEBUG_RL_MODEL = True
 DEBUG_RL_AGENT = False
 DEBUG_RL_VIZ = False
 
