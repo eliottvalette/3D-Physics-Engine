@@ -95,10 +95,19 @@ class DataCollector:
         for m in self.current_episode_metrics:
             all_keys.update(m.keys())
         mean_metrics = {}
+        LIST_KEYS = ["td_targets", "state_values", "action_idx"]
         for key in all_keys:
-            # Prendre la moyenne en ignorant les None
             values = [m[key] for m in self.current_episode_metrics if key in m and m[key] is not None]
-            mean_metrics[key] = float(np.mean(values)) if values else None
+            if key in LIST_KEYS:
+                # S'assurer que chaque valeur est une liste
+                concat = []
+                for v in values:
+                    if not isinstance(v, list):
+                        v = [v]
+                    concat.extend(v)
+                mean_metrics[key] = concat
+            else:
+                mean_metrics[key] = float(np.mean(values)) if values else None
         self.batch_episode_metrics.append(mean_metrics)
         self.current_episode_metrics = []
         
@@ -189,6 +198,8 @@ class DataCollector:
         with open(metrics_path, 'r') as f:
             metrics_data = json.load(f)
         self.visualizer.plot_metrics(metrics_data)
+        self.visualizer.plot_losses(metrics_data)
+        self.visualizer.plot_state_value_distributions(metrics_data)
         plt.close('all')
 
 class Visualizer:
@@ -197,7 +208,7 @@ class Visualizer:
     """
     def __init__(self, start_epsilon, epsilon_decay, epsilon_min, plot_interval, save_interval, output_dir="viz_json", viz_dir=None):
         self.output_dir = output_dir
-        self.viz_dir = viz_dir or os.path.join("visualizations", datetime.now().strftime("%Y-%m-%d_%Hh-%Mm-%Ss"))
+        self.viz_dir = viz_dir or "visualizations"
         self.start_epsilon = start_epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
@@ -257,18 +268,82 @@ class Visualizer:
         plt.tight_layout()
         plt.savefig(os.path.join(self.viz_dir, 'RL_metrics.jpg'), dpi=dpi, bbox_inches='tight')
         plt.close()
+        self.plot_losses(metrics_data, dpi)
+        self.plot_state_value_distributions(metrics_data, dpi)
+
+    def plot_losses(self, metrics_data, dpi=500):
+        """
+        Trace actor_loss et critic_loss sur le même graphique.
+        """
+        episodes = []
+        actor_losses = []
+        critic_losses = []
+        for episode_num, episode_metrics in metrics_data.items():
+            if 'actor_loss' in episode_metrics and episode_metrics['actor_loss'] is not None:
+                episodes.append(int(episode_num))
+                actor_losses.append(float(episode_metrics['actor_loss']))
+            else:
+                actor_losses.append(np.nan)
+            if 'critic_loss' in episode_metrics and episode_metrics['critic_loss'] is not None:
+                critic_losses.append(float(episode_metrics['critic_loss']))
+            else:
+                critic_losses.append(np.nan)
+        plt.figure(figsize=(12, 7))
+        plt.plot(episodes, pd.Series(actor_losses).rolling(window=10, min_periods=1).mean(), label='Actor Loss', color='#D62828')
+        plt.plot(episodes, pd.Series(critic_losses).rolling(window=10, min_periods=1).mean(), label='Critic Loss', color='#003049')
+        plt.xlabel('Episode')
+        plt.ylabel('Loss')
+        plt.title('Actor & Critic Losses')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.viz_dir, 'losses.jpg'), dpi=dpi, bbox_inches='tight')
+        plt.close()
+
+    def plot_state_value_distributions(self, metrics_data, dpi=500):
+        """
+        Histogrammes des td_targets (true state value) et state_values (prédits par le critic).
+        Affiche deux sous-graphiques côte à côte : un pour td_targets, un pour state_values.
+        """
+        all_td_targets = []
+        all_state_values = []
+        for episode_metrics in metrics_data.values():
+            if 'td_targets' in episode_metrics and episode_metrics['td_targets'] is not None:
+                all_td_targets.extend(episode_metrics['td_targets'])
+            if 'state_values' in episode_metrics and episode_metrics['state_values'] is not None:
+                all_state_values.extend(episode_metrics['state_values'])
+
+        fig, axes = plt.subplots(2, 1, figsize=(14, 6), sharey=True)
+        
+        sns.histplot(all_td_targets, color='#F77F00', label='TD Targets (True State Value)', kde=True, stat='density', bins=40, alpha=0.6, ax=axes[0])
+        axes[0].set_xlabel('TD Target Value')
+        axes[0].set_ylabel('Density')
+        axes[0].set_title('Distribution des TD Targets')
+        axes[0].legend()
+
+        sns.histplot(all_state_values, color='#006DAA', label='State Values (Critic)', kde=True, stat='density', bins=40, alpha=0.6, ax=axes[1])
+        axes[1].set_xlabel('State Value (Critic)')
+        axes[1].set_ylabel('Density')
+        axes[1].set_title('Distribution des State Values (Critic)')
+        axes[1].legend()
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.viz_dir, 'state_value_distributions.jpg'), dpi=dpi, bbox_inches='tight')
+        plt.close()
 
 if __name__ == "__main__":
     visualizer = Visualizer(start_epsilon=START_EPS, epsilon_decay=EPS_DECAY, epsilon_min=EPS_MIN, plot_interval=PLOT_INTERVAL, save_interval=SAVE_INTERVAL)
     # On les json une seule fois
     states_path = os.path.join(visualizer.output_dir, "episodes_states.json")
     metrics_path = os.path.join(visualizer.output_dir, "metrics_history.json")
-    
+
     with open(states_path, 'r') as f:
         states_data = json.load(f)
     with open(metrics_path, 'r') as f:
         metrics_data = json.load(f)
 
     visualizer.plot_metrics(metrics_data)
+    visualizer.plot_losses(metrics_data)
+    visualizer.plot_state_value_distributions(metrics_data)
 
     plt.close('all')

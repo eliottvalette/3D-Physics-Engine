@@ -22,8 +22,8 @@ class QuadrupedAgent:
         2. Le critique produit Q(s,·) et V(s) → Cible TD  
            *td* = r + γ maxₐ′ Q(s′, a′).  
         3. Pertes  
-           – **Acteur** : −log π_θ · Avantage  (A = Q−V)  − β H[π]  
-           – **Critique**: MSE(Q(s,a), td)  
+           - **Acteur** : -log π_θ · Avantage  (A = Q - V) - β H[π]  
+           - **Critique**: MSE(Q(s,a), td)  
         4. Deux optimiseurs Adam indépendants mettent à jour θ et ϕ.
     """
     def __init__(self, device,state_size, action_size, gamma, learning_rate, load_model=False, load_path=None):
@@ -42,7 +42,7 @@ class QuadrupedAgent:
         self.action_size = action_size
         self.gamma = gamma
         self.learning_rate = learning_rate
-        self.entropy_coeff = 0.01
+        self.entropy_coeff = 0.1
         self.value_loss_coeff = 0.15
         self.invalid_action_loss_coeff = 15
         self.policy_loss_coeff = 0.8
@@ -99,7 +99,7 @@ class QuadrupedAgent:
             action_idx = torch.randint(0, 3, (self.action_size,), device=self.device)  # (8,) 0/1/2
             if DEBUG_RL_AGENT:
                 print(f"[AGENT] random action_idx:", action_idx)
-                
+
         else:  # POLICY
             with torch.no_grad():
                 action_discrete, _ = self.actor_model(state_t)  # (-1,0,1) (1,8)
@@ -166,7 +166,7 @@ class QuadrupedAgent:
         dones_tensor = torch.tensor(dones, dtype=torch.float32, device=self.device)
         states_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
         next_states_tensor = torch.tensor(next_state, dtype=torch.float32, device=self.device)
-        # action_idx_t  = torch.stack(action_idx_b).to(self.device)       # (B, 8) entiers
+        action_idx_tensor = torch.stack(action_idx_b).to(self.device)
 
         # Critic forward
         state_values = self.critic_model(states_tensor).squeeze(1)
@@ -176,16 +176,16 @@ class QuadrupedAgent:
         td_targets = rewards_tensor + self.gamma * next_state_values * (1 - dones_tensor)
         advantages = td_targets - state_values.detach()
 
+        # Critic loss
         critic_loss = F.mse_loss(state_values, td_targets)
 
+        # Actor loss
         _, probs = self.actor_model(states_tensor)                      # (B, 8, 3)
-        dist     = torch.distributions.Categorical(probs=probs)
-
-        action_idx_t  = torch.stack([a.long() for a in action_idx_b]).to(self.device)
-        logp_actions = dist.log_prob(action_idx_t).sum(-1)              # somme sur les 8 articulations
+        dist     = torch.distributions.Categorical(probs=probs)         # (B, 8, 3)  Dist contient 8 variables aléatoires, une pour chaque articulation, de Loi de probabilité définie par le actor pour un state précis
+        log_probs_actions = dist.log_prob(action_idx_tensor).sum(-1)    # Somme des logs de probabilités données aux actions réellement jouées 
         entropy      = dist.entropy().sum(-1).mean()
 
-        actor_loss = -(advantages * logp_actions).mean() \
+        actor_loss = -(advantages * log_probs_actions).mean() \
                      - self.entropy_coeff * entropy
 
         # Optim Critic
@@ -210,6 +210,9 @@ class QuadrupedAgent:
             'actor_loss': actor_loss.item(),
             'entropy': entropy.item(),
             'total_loss': actor_loss.item() + critic_loss.item(),
-            'epsilon': epsilon
+            'epsilon': epsilon,
+            'td_targets': td_targets.detach().cpu().numpy().tolist(),
+            'state_values': state_values.detach().cpu().numpy().tolist(),
+            'action_idx': action_idx_tensor.detach().cpu().numpy().tolist(),
         }
         return metrics

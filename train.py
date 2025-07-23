@@ -34,6 +34,7 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
 
     env.quadruped.reset()
     env.circles_passed.clear()
+    env.prev_potential = None  # Réinitialiser le potentiel pour le nouvel épisode
 
     if DEBUG_RL_TRAIN:
         print(f"[TRAIN] Début de la main")
@@ -60,7 +61,7 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
         data_collector.add_state(state)
     
         # Rendu graphique si activé
-        if rendering and (step % render_every == 0):
+        if rendering and (episode % render_every == 0):
             env.render(reward)
 
         # Training mid-episode car ils sont très longs
@@ -89,6 +90,7 @@ def main_training_loop(agent: QuadrupedAgent, episodes: int, rendering: bool, re
     """
     # Initialisation des historiques et de l'environnement
     env = QuadrupedEnv(rendering=rendering)
+    env.clock.tick(240)
     
     # Configuration du collecteur de données
     data_collector = DataCollector(

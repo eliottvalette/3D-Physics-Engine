@@ -10,6 +10,7 @@ from physics_env.quadruped import Quadruped
 from physics_env.quadruped_points import get_quadruped_vertices, create_quadruped_vertices
 from physics_env.ground import Ground
 from physics_env.update_functions import update_quadruped
+from physics_env.config import *
 
 class QuadrupedEnv:
     """
@@ -41,7 +42,7 @@ class QuadrupedEnv:
         "P - Afficher les sommets",
         "Échap - Quitter"
     ]
-    CIRCLE_RADII = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    CIRCLE_RADII = [0.1, 0.3, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     def __init__(self, rendering=True):
         """Initialize the game, Pygame, and world objects."""
@@ -66,6 +67,13 @@ class QuadrupedEnv:
 
         self.circle_radii   = self.CIRCLE_RADII
         self.circles_passed = set()         # stocke les rayons déjà comptés
+        
+        # Attributs pour la reward
+        self.prev_potential = None        # pour ∆Φ
+        self.prev_rot_potential = None
+        self.rot_penalty_coef = 0.5       
+        self.potential_coef  = 1.0
+        
 
     def run(self):
         """Main game loop."""
@@ -175,29 +183,65 @@ class QuadrupedEnv:
         if reset_actions[0]:
             self.quadruped.reset_random()
             self.circles_passed.clear()
+            self.prev_rot_potential = None
+            self.prev_potential = None
         if reset_actions[1]:
             self.quadruped.reset()
             self.circles_passed.clear()
+            self.prev_rot_potential = None
+            self.prev_potential = None
 
         # Update quadruped
         update_quadruped(self.quadruped)
 
         next_state = self.get_state()
         # ---- REWARD ----------------------------------------------------- 
-        # distance horizontale à l’origine
+        # distance horizontale à l'origine
         radius = np.hypot(self.quadruped.position[0],
                           self.quadruped.position[2])
 
-        reward = 0.0
+        # ----------  a)  Pénalité d'inclinaison du corps (shaping potentiel) --------------
+        #   on ne pénalise que pitch (rotation[0]) et roll (rotation[2])
+        pitch, _, roll = self.quadruped.rotation
+        pitch = ((pitch + np.pi) % (2 * np.pi)) - np.pi # Normaliser les angles entre -π et π pour éviter les valeurs aberrantes
+        roll = ((roll + np.pi) % (2 * np.pi)) - np.pi
+        # Potentiel d'inclinaison (plus il est proche de 0, mieux c'est)
+        rot_potential = - (abs(pitch) + abs(roll))
+        if self.prev_rot_potential is None:
+            delta_phi_rot = 0.0
+        else:
+            delta_phi_rot = GAMMA * rot_potential - self.prev_rot_potential
+        self.prev_rot_potential = rot_potential
+        
+        # ----------  b)  Shaping "potentiel" vers le prochain cercle --------------
+        # distance horizontale actuelle
+        # prochain cercle non encore franchi
+        remaining = [r for r in self.circle_radii if r not in self.circles_passed]
+        next_target = min(remaining) if remaining else self.circle_radii[-1]
+        rho_t = abs(next_target - radius)          # distance à l'objectif courant
+        phi_t = -rho_t                             # potentiel
+        if self.prev_potential is None:
+            delta_phi = 0.0                        # premier pas
+        else:
+            delta_phi = GAMMA * phi_t - self.prev_potential
+        self.prev_potential = phi_t                # mise à jour pour le pas suivant
+        
+        # ----------  c)  Récompense principale --------------
+        sparse_reward = 0.0
         for r in self.circle_radii:
             if radius >= r and r not in self.circles_passed:
-                reward += 10.0              # +10 par cercle, une seule fois
+                sparse_reward += 10.0
                 self.circles_passed.add(r)
-
-        done = bool(self.quadruped.position[1] < 4.0)   # corps trop bas
+        
+        done = self.quadruped.position[1] < 4.0
         if done:
-           reward = -10.0
-        # -----------------------------------------------------------------
+            sparse_reward = -10.0
+
+        done = False # TODO: remove this
+        
+        # ----------  d)  Somme finale -------------------------
+        reward = sparse_reward + self.rot_penalty_coef * delta_phi_rot + self.potential_coef * delta_phi
+        # -----------------------------------------------------
         
         return next_state, reward, done
 

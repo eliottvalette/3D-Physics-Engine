@@ -46,16 +46,16 @@ DEBUG_CONTACT = False
 
 # ----- Debug RL Training --------------------------------------
 DEBUG_RL_TRAIN = False
-DEBUG_RL_MODEL = True
+DEBUG_RL_MODEL = False
 DEBUG_RL_AGENT = False
 DEBUG_RL_VIZ = False
 
 # ----- RL Training Config --------------------------------------
-EPISODES = 1000
-MAX_STEPS = 250
+EPISODES = 10_000
+MAX_STEPS = 500
 
-START_EPS = 0.5
-EPS_DECAY = 0.995
+START_EPS = 0.75
+EPS_DECAY = 0.998
 EPS_MIN = 0.01
 
 PLOT_INTERVAL = 30
@@ -63,7 +63,7 @@ SAVE_INTERVAL = 10
 
 GAMMA = 0.99
 ALPHA = 0.001
-STATE_SIZE = 31
+STATE_SIZE = 47
 ACTION_SIZE = 8
 
 RENDERING = True

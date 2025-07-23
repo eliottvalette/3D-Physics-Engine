@@ -26,4 +26,4 @@ agent = QuadrupedAgent(
 )
 
 # Démarrer l'entraînement
-main_training_loop(agent, episodes=EPISODES, rendering=RENDERING, render_every=1)
+main_training_loop(agent, episodes=EPISODES, rendering=RENDERING, render_every=25)

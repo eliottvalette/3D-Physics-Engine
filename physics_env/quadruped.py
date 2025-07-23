@@ -163,23 +163,29 @@ class Quadruped:
         return self.vertices_dict
 
     def set_shoulder_angle(self, leg_index, angle):
-        """Définit l'angle de l'épaule pour une patte donnée (0-3)"""
-        self.shoulder_angles[leg_index] = angle
+        """Définit l'angle de l'épaule pour une patte donnée (0-3), cap à [-pi/2, +pi/2]"""
+        capped_angle = max(-math.pi/2, min(math.pi/2, angle))
+        self.shoulder_angles[leg_index] = capped_angle
         self.rotated_vertices = self.get_vertices()
     
     def set_elbow_angle(self, leg_index, angle):
-        """Définit l'angle du coude pour une patte donnée (0-3)"""
-        self.elbow_angles[leg_index] = angle
+        """Définit l'angle du coude pour une patte donnée (0-3), cap à [-pi/2, +pi/2]"""
+        capped_angle = max(-math.pi/2, min(math.pi/2, angle))
+        self.elbow_angles[leg_index] = capped_angle
         self.rotated_vertices = self.get_vertices()
     
     def adjust_shoulder_angle(self, leg_index, delta_angle):
-        """Ajuste l'angle de l'épaule pour une patte donnée"""
-        self.shoulder_angles[leg_index] += delta_angle
+        """Ajuste l'angle de l'épaule pour une patte donnée, cap à [-pi/2, +pi/2]"""
+        new_angle = self.shoulder_angles[leg_index] + delta_angle
+        capped_angle = max(-math.pi/2, min(math.pi/2, new_angle))
+        self.shoulder_angles[leg_index] = capped_angle
         self.rotated_vertices = self.get_vertices()
     
     def adjust_elbow_angle(self, leg_index, delta_angle):
-        """Ajuste l'angle du coude pour une patte donnée"""
-        self.elbow_angles[leg_index] += delta_angle
+        """Ajuste l'angle du coude pour une patte donnée, cap à [-pi/2, +pi/2]"""
+        new_angle = self.elbow_angles[leg_index] + delta_angle
+        capped_angle = max(-math.pi/2, min(math.pi/2, new_angle))
+        self.elbow_angles[leg_index] = capped_angle
         self.rotated_vertices = self.get_vertices()
     
     def get_state(self):
@@ -223,9 +229,19 @@ class Quadruped:
             )
             ys = [v[1] for v in leg_vertices]
             min_max_y.extend([min(ys), max(ys)])
+        
+        # 4. est-ce que les angles sont capés ? pour chaque angle, un vecteur de taille 2, [a, b], a = 1 si l'angle est capé à pi/2, 0 sinon, b = 1 si l'angle est capé à -pi/2, 0 sinon
+        cap_shoulder = []
+        cap_elbow = []
+        for angle in self.shoulder_angles:
+            cap_shoulder.append([1 if angle >= math.pi/2 else 0, 1 if angle <= -math.pi/2 else 0])
+        for angle in self.elbow_angles:
+            cap_elbow.append([1 if angle >= math.pi/2 else 0, 1 if angle <= -math.pi/2 else 0])
+        cap_shoulder = np.array(cap_shoulder).flatten()
+        cap_elbow = np.array(cap_elbow).flatten()
 
-        # 4. état final
-        state = np.concatenate([base, body_limits, np.array(min_max_y, dtype=np.float32)])
+        # 5. état final
+        state = np.concatenate([base, body_limits, np.array(min_max_y, dtype=np.float32), cap_shoulder, cap_elbow])
         return state.tolist()
 
     def draw(self, screen: pygame.Surface, camera: Camera3D):
