@@ -41,9 +41,10 @@ class Quadruped:
         self.initial_shoulder_angles = self.shoulder_angles.copy()
         self.initial_elbow_angles = self.elbow_angles.copy()
 
-        self.rotated_vertices = self.get_vertices()
-
         self.prev_vertices = None
+        self.rotated_vertices = None  # Correction : initialisé à None avant tout appel
+        self._needs_update   = False            # recalcul différé
+        self.rotated_vertices = self.get_vertices()
     
     def reset_random(self):
         self.position = self.initial_position.copy()
@@ -54,6 +55,7 @@ class Quadruped:
         self.shoulder_angles = self.initial_shoulder_angles.copy()
         self.elbow_angles = self.initial_elbow_angles.copy()
         self.rotated_vertices = self.get_vertices()
+        self._needs_update   = False
     
     def reset(self):
         self.position = self.initial_position.copy()
@@ -64,129 +66,102 @@ class Quadruped:
         self.shoulder_angles = self.initial_shoulder_angles.copy()
         self.elbow_angles = self.initial_elbow_angles.copy()
         self.rotated_vertices = self.get_vertices()
+        self._needs_update   = False
     
     def get_vertices(self):
-        """Retourne les vertices du quadruped dans le repère monde avec transformations appliquées"""
-        # Appliquer les rotations aux sommets
+        """Retourne les vertices. Recalcule uniquement si nécessaire."""
+        if not getattr(self, "_needs_update", False):
+            # Correction : si self.rotated_vertices n'existe pas encore, retourne self.vertices
+            if self.rotated_vertices is None:
+                return self.vertices.copy()
+            return self.rotated_vertices
+
+        # ---------- pré‑calculs --------------
+        rot_x, rot_y, rot_z = self.rotation
+        cos_x, sin_x = math.cos(rot_x), math.sin(rot_x)
+        cos_y, sin_y = math.cos(rot_y), math.sin(rot_y)
+        cos_z, sin_z = math.cos(rot_z), math.sin(rot_z)
+
+        cos_sh  = np.cos(self.shoulder_angles)
+        sin_sh  = np.sin(self.shoulder_angles)
+        cos_el  = np.cos(self.elbow_angles)
+        sin_el  = np.sin(self.elbow_angles)
+
+        # (le corps de la fonction est inchangé, mais on remplace
+        #   tous les math.cos / math.sin correspondants par les tableaux
+        #   pré‑calculés cos_*/sin_* ci‑dessus)
+        # Copie du corps d'origine, mais remplacer math.cos/sin par cos_x, sin_x, etc. pour les angles globaux,
+        # et cos_sh[leg], sin_sh[leg], cos_el[leg], sin_el[leg] pour les articulations.
         rotated_vertices = []
-        
-        # Structure des vertices: [body(8), upper_leg_0(8), upper_leg_1(8), upper_leg_2(8), upper_leg_3(8), 
-        #                          lower_leg_0(8), lower_leg_1(8), lower_leg_2(8), lower_leg_3(8)]
-        
         for i, vertex in enumerate(self.vertices):
-            # Déterminer à quelle partie appartient ce vertex
-            part_index = i // 8  # 0=body, 1-4=upper_legs, 5-8=lower_legs
-            
-            # Appliquer les transformations d'articulation selon la partie
+            part_index = i // 8
             transformed_vertex = vertex.copy()
-            
-            if part_index == 0:  # Body - pas de transformation d'articulation
+            if part_index == 0:
                 pass
-            elif 1 <= part_index <= 4:  # Upper legs - transformation d'épaule seulement
+            elif 1 <= part_index <= 4:
                 leg_index = part_index - 1
                 shoulder_angle = self.shoulder_angles[leg_index]
-                
-                # Utiliser la position d'épaule calculée dynamiquement
                 shoulder_center = self.shoulder_positions[leg_index]
-                
-                # Appliquer la rotation d'épaule autour de l'axe X
                 relative_pos = transformed_vertex - shoulder_center
-                cos_shoulder = math.cos(shoulder_angle)
-                sin_shoulder = math.sin(shoulder_angle)
-                y_new = relative_pos[1] * cos_shoulder - relative_pos[2] * sin_shoulder
-                z_new = relative_pos[1] * sin_shoulder + relative_pos[2] * cos_shoulder
+                y_new = relative_pos[1] * cos_sh[leg_index] - relative_pos[2] * sin_sh[leg_index]
+                z_new = relative_pos[1] * sin_sh[leg_index] + relative_pos[2] * cos_sh[leg_index]
                 transformed_vertex = shoulder_center + np.array([relative_pos[0], y_new, z_new])
-                
-            elif 5 <= part_index <= 8:  # Lower legs - transformation d'épaule + coude
+            elif 5 <= part_index <= 8:
                 leg_index = part_index - 5
-                shoulder_angle = self.shoulder_angles[leg_index]
-                elbow_angle = self.elbow_angles[leg_index]
-                
-                # 1. D'abord appliquer la rotation d'épaule (même que pour upper leg)
                 shoulder_center = self.shoulder_positions[leg_index]
-                
-                # Appliquer la rotation d'épaule
                 relative_pos = transformed_vertex - shoulder_center
-                cos_shoulder = math.cos(shoulder_angle)
-                sin_shoulder = math.sin(shoulder_angle)
-                y_new = relative_pos[1] * cos_shoulder - relative_pos[2] * sin_shoulder
-                z_new = relative_pos[1] * sin_shoulder + relative_pos[2] * cos_shoulder
+                y_new = relative_pos[1] * cos_sh[leg_index] - relative_pos[2] * sin_sh[leg_index]
+                z_new = relative_pos[1] * sin_sh[leg_index] + relative_pos[2] * cos_sh[leg_index]
                 transformed_vertex = shoulder_center + np.array([relative_pos[0], y_new, z_new])
-                
-                # 2. Ensuite appliquer la rotation de coude (par rapport à la position après épaule)
-                # Le point de coude doit aussi être transformé par la rotation d'épaule
                 elbow_center_original = self.elbow_positions[leg_index]
-                
-                # Appliquer la même transformation d'épaule au point de coude
                 elbow_relative_pos = elbow_center_original - shoulder_center
-                elbow_y_new = elbow_relative_pos[1] * cos_shoulder - elbow_relative_pos[2] * sin_shoulder
-                elbow_z_new = elbow_relative_pos[1] * sin_shoulder + elbow_relative_pos[2] * cos_shoulder
+                elbow_y_new = elbow_relative_pos[1] * cos_sh[leg_index] - elbow_relative_pos[2] * sin_sh[leg_index]
+                elbow_z_new = elbow_relative_pos[1] * sin_sh[leg_index] + elbow_relative_pos[2] * cos_sh[leg_index]
                 elbow_center_transformed = shoulder_center + np.array([elbow_relative_pos[0], elbow_y_new, elbow_z_new])
-                
-                # Appliquer la rotation de coude autour du point transformé
                 relative_pos = transformed_vertex - elbow_center_transformed
-                cos_elbow = math.cos(elbow_angle)
-                sin_elbow = math.sin(elbow_angle)
-                y_new = relative_pos[1] * cos_elbow - relative_pos[2] * sin_elbow
-                z_new = relative_pos[1] * sin_elbow + relative_pos[2] * cos_elbow
+                y_new = relative_pos[1] * cos_el[leg_index] - relative_pos[2] * sin_el[leg_index]
+                z_new = relative_pos[1] * sin_el[leg_index] + relative_pos[2] * cos_el[leg_index]
                 transformed_vertex = elbow_center_transformed + np.array([relative_pos[0], y_new, z_new])
-            
-            # Appliquer les rotations globales du quadruped
-            # Rotation autour de l'axe X (pitch)
-            cos_x = math.cos(self.rotation[0])
-            sin_x = math.sin(self.rotation[0])
+            # Rotations globales
             y1 = transformed_vertex[1] * cos_x - transformed_vertex[2] * sin_x
             z1 = transformed_vertex[1] * sin_x + transformed_vertex[2] * cos_x
             rotated_vertex = np.array([transformed_vertex[0], y1, z1])
-            
-            # Rotation autour de l'axe Y (yaw)
-            cos_y = math.cos(self.rotation[1])
-            sin_y = math.sin(self.rotation[1])
             x2 = rotated_vertex[0] * cos_y + rotated_vertex[2] * sin_y
             z2 = -rotated_vertex[0] * sin_y + rotated_vertex[2] * cos_y
             rotated_vertex = np.array([x2, rotated_vertex[1], z2])
-            
-            # Rotation autour de l'axe Z (roll)
-            cos_z = math.cos(self.rotation[2])
-            sin_z = math.sin(self.rotation[2])
             x3 = rotated_vertex[0] * cos_z - rotated_vertex[1] * sin_z
             y3 = rotated_vertex[0] * sin_z + rotated_vertex[1] * cos_z
             rotated_vertex = np.array([x3, y3, rotated_vertex[2]])
-            
-            # Ajouter la position du quadruped
             final_vertex = self.position + rotated_vertex
             rotated_vertices.append(final_vertex)
-        
+        self.rotated_vertices = rotated_vertices
+        self._needs_update = False
         return rotated_vertices
     
     def get_vertices_dict(self):
         return self.vertices_dict
 
     def set_shoulder_angle(self, leg_index, angle):
-        """Définit l'angle de l'épaule pour une patte donnée (0-3), cap à [-pi/2, +pi/2]"""
         capped_angle = max(-math.pi/2, min(math.pi/2, angle))
         self.shoulder_angles[leg_index] = capped_angle
-        self.rotated_vertices = self.get_vertices()
+        self._needs_update = True
     
     def set_elbow_angle(self, leg_index, angle):
-        """Définit l'angle du coude pour une patte donnée (0-3), cap à [-pi/2, +pi/2]"""
         capped_angle = max(-math.pi/2, min(math.pi/2, angle))
         self.elbow_angles[leg_index] = capped_angle
-        self.rotated_vertices = self.get_vertices()
+        self._needs_update = True
     
     def adjust_shoulder_angle(self, leg_index, delta_angle):
-        """Ajuste l'angle de l'épaule pour une patte donnée, cap à [-pi/2, +pi/2]"""
         new_angle = self.shoulder_angles[leg_index] + delta_angle
         capped_angle = max(-math.pi/2, min(math.pi/2, new_angle))
         self.shoulder_angles[leg_index] = capped_angle
-        self.rotated_vertices = self.get_vertices()
+        self._needs_update = True
     
     def adjust_elbow_angle(self, leg_index, delta_angle):
-        """Ajuste l'angle du coude pour une patte donnée, cap à [-pi/2, +pi/2]"""
         new_angle = self.elbow_angles[leg_index] + delta_angle
         capped_angle = max(-math.pi/2, min(math.pi/2, new_angle))
         self.elbow_angles[leg_index] = capped_angle
-        self.rotated_vertices = self.get_vertices()
+        self._needs_update = True
     
     def get_state(self):
         """

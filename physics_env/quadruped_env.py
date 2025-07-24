@@ -175,6 +175,9 @@ class QuadrupedEnv:
         for idx, action in enumerate(elbow_actions):
             self.quadruped.adjust_elbow_angle(idx, ELBOW_DELTA * action)
 
+        # === un seul recalcul pour toutes les articulations ===
+        _ = self.quadruped.get_vertices()
+
         # Update camera
         for idx, action in enumerate(camera_actions):
             if action:
