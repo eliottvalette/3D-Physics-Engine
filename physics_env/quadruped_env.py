@@ -71,7 +71,8 @@ class QuadrupedEnv:
         # Attributs pour la reward
         self.prev_potential = None        # pour ∆Φ
         self.potential_coef  = 3.0
-        self.rot_penalty_coef = 0.02
+        self.rot_penalty_coef = 0.5
+        self.consecutive_steps_below_critical_height = 0
         
     def run(self):
         """Main game loop."""
@@ -224,10 +225,20 @@ class QuadrupedEnv:
                 sparse_reward += 10.0
                 self.circles_passed.add(r)
         
-        done = self.quadruped.position[1] < 4.0
-        if done:
-            sparse_reward = -10.0
-        
+        below_critical_height = self.quadruped.position[1] < 4.0
+        if below_critical_height:
+            sparse_reward = -0.5
+
+        if below_critical_height:
+            self.consecutive_steps_below_critical_height += 1
+        else:
+            self.consecutive_steps_below_critical_height = 0
+
+        if self.consecutive_steps_below_critical_height > 50:
+            done = True
+        else:
+            done = False
+
         # ----------  d)  Somme finale -------------------------
         reward = sparse_reward + tilt_penalty + self.potential_coef * delta_phi
         # -----------------------------------------------------

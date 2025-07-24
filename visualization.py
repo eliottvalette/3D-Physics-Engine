@@ -322,12 +322,14 @@ class Visualizer:
         axes[0].set_ylabel('Density')
         axes[0].set_title('Distribution des TD Targets')
         axes[0].legend()
+        axes[0].set_xlim(min(all_td_targets+all_state_values), max(all_td_targets+all_state_values))
 
         sns.histplot(all_state_values, color='#006DAA', label='State Values (Critic)', kde=True, stat='density', bins=40, alpha=0.6, ax=axes[1])
         axes[1].set_xlabel('State Value (Critic)')
         axes[1].set_ylabel('Density')
         axes[1].set_title('Distribution des State Values (Critic)')
         axes[1].legend()
+        axes[1].set_xlim(min(all_td_targets+all_state_values), max(all_td_targets+all_state_values))
 
         plt.tight_layout()
         plt.savefig(os.path.join(self.viz_dir, 'state_value_distributions.jpg'), dpi=dpi, bbox_inches='tight')

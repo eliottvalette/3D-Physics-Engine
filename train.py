@@ -35,6 +35,7 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
     env.quadruped.reset()
     env.circles_passed.clear()
     env.prev_potential = None  # Réinitialiser le potentiel pour le nouvel épisode
+    env.consecutive_steps_below_critical_height = 0
 
     if DEBUG_RL_TRAIN:
         print(f"[TRAIN] Début de la main")

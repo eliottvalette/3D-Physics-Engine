@@ -476,7 +476,6 @@ def update_quadruped(quadruped: Quadruped):
         quadruped.angular_velocity += avg_ang_t
 
     # --- Ajout : traction latérale basée sur t‑1 ---
-    mass = 5.0
     traction_imp, traction_ang = [], []
     for previous_vertex, current_vertex in zip(prev_vertices, quadruped.rotated_vertices):
         # le point est (et était) au sol ?
@@ -485,6 +484,7 @@ def update_quadruped(quadruped: Quadruped):
         if not (previous_on_ground and current_on_ground):
             continue
         # déplacement réel du sommet (inclut la cinématique des membres)
+        current_vertex[1], previous_vertex[1] = 0, 0 # Normalisation de la Hauteur, on considère que les deux points restent au sol pendant la cinématique
         delta = current_vertex - previous_vertex
         delta[1] = 0.0  # composante tangentielle
         if np.linalg.norm(delta) < 1e-8:
