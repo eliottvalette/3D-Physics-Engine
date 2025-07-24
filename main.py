@@ -37,4 +37,4 @@ main_training_loop(agent, episodes=EPISODES, rendering=RENDERING, render_every=2
 
 if PROFILING:
     profiler.disable()
-    profiler.dump_stats("training_profile.prof")
+    profiler.dump_stats("profiling/training_profile.prof")

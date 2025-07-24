@@ -9,7 +9,7 @@ from physics_env.camera import Camera3D
 from physics_env.quadruped import Quadruped
 from physics_env.quadruped_points import get_quadruped_vertices, create_quadruped_vertices
 from physics_env.ground import Ground
-from physics_env.update_functions import update_quadruped
+from physics_env.update_quad import update_quadruped
 from physics_env.config import *
 
 class QuadrupedEnv:

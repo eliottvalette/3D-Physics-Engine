@@ -87,55 +87,75 @@ class Quadruped:
         cos_el  = np.cos(self.elbow_angles)
         sin_el  = np.sin(self.elbow_angles)
 
-        # (le corps de la fonction est inchangé, mais on remplace
-        #   tous les math.cos / math.sin correspondants par les tableaux
-        #   pré‑calculés cos_*/sin_* ci‑dessus)
-        # Copie du corps d'origine, mais remplacer math.cos/sin par cos_x, sin_x, etc. pour les angles globaux,
-        # et cos_sh[leg], sin_sh[leg], cos_el[leg], sin_el[leg] pour les articulations.
         rotated_vertices = []
         for i, vertex in enumerate(self.vertices):
+
             part_index = i // 8
             transformed_vertex = vertex.copy()
+
             if part_index == 0:
                 pass
+
             elif 1 <= part_index <= 4:
                 leg_index = part_index - 1
-                shoulder_angle = self.shoulder_angles[leg_index]
+
                 shoulder_center = self.shoulder_positions[leg_index]
                 relative_pos = transformed_vertex - shoulder_center
+
                 y_new = relative_pos[1] * cos_sh[leg_index] - relative_pos[2] * sin_sh[leg_index]
                 z_new = relative_pos[1] * sin_sh[leg_index] + relative_pos[2] * cos_sh[leg_index]
+
                 transformed_vertex = shoulder_center + np.array([relative_pos[0], y_new, z_new])
+
             elif 5 <= part_index <= 8:
+
                 leg_index = part_index - 5
+
                 shoulder_center = self.shoulder_positions[leg_index]
                 relative_pos = transformed_vertex - shoulder_center
+
                 y_new = relative_pos[1] * cos_sh[leg_index] - relative_pos[2] * sin_sh[leg_index]
                 z_new = relative_pos[1] * sin_sh[leg_index] + relative_pos[2] * cos_sh[leg_index]
+
                 transformed_vertex = shoulder_center + np.array([relative_pos[0], y_new, z_new])
+
                 elbow_center_original = self.elbow_positions[leg_index]
                 elbow_relative_pos = elbow_center_original - shoulder_center
+
                 elbow_y_new = elbow_relative_pos[1] * cos_sh[leg_index] - elbow_relative_pos[2] * sin_sh[leg_index]
                 elbow_z_new = elbow_relative_pos[1] * sin_sh[leg_index] + elbow_relative_pos[2] * cos_sh[leg_index]
+
                 elbow_center_transformed = shoulder_center + np.array([elbow_relative_pos[0], elbow_y_new, elbow_z_new])
+
                 relative_pos = transformed_vertex - elbow_center_transformed
+
                 y_new = relative_pos[1] * cos_el[leg_index] - relative_pos[2] * sin_el[leg_index]
                 z_new = relative_pos[1] * sin_el[leg_index] + relative_pos[2] * cos_el[leg_index]
+
                 transformed_vertex = elbow_center_transformed + np.array([relative_pos[0], y_new, z_new])
+
             # Rotations globales
             y1 = transformed_vertex[1] * cos_x - transformed_vertex[2] * sin_x
             z1 = transformed_vertex[1] * sin_x + transformed_vertex[2] * cos_x
+
             rotated_vertex = np.array([transformed_vertex[0], y1, z1])
+
             x2 = rotated_vertex[0] * cos_y + rotated_vertex[2] * sin_y
             z2 = -rotated_vertex[0] * sin_y + rotated_vertex[2] * cos_y
+
             rotated_vertex = np.array([x2, rotated_vertex[1], z2])
+
             x3 = rotated_vertex[0] * cos_z - rotated_vertex[1] * sin_z
             y3 = rotated_vertex[0] * sin_z + rotated_vertex[1] * cos_z
+
             rotated_vertex = np.array([x3, y3, rotated_vertex[2]])
+
             final_vertex = self.position + rotated_vertex
             rotated_vertices.append(final_vertex)
+
         self.rotated_vertices = rotated_vertices
         self._needs_update = False
+        
         return rotated_vertices
     
     def get_vertices_dict(self):
