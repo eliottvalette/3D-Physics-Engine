@@ -70,11 +70,9 @@ class QuadrupedEnv:
         
         # Attributs pour la reward
         self.prev_potential = None        # pour ∆Φ
-        self.prev_rot_potential = None
-        self.rot_penalty_coef = 2.0       
         self.potential_coef  = 3.0
+        self.rot_penalty_coef = 0.02
         
-
     def run(self):
         """Main game loop."""
         running = True
@@ -185,12 +183,10 @@ class QuadrupedEnv:
         if reset_actions[0]:
             self.quadruped.reset_random()
             self.circles_passed.clear()
-            self.prev_rot_potential = None
             self.prev_potential = None
         if reset_actions[1]:
             self.quadruped.reset()
             self.circles_passed.clear()
-            self.prev_rot_potential = None
             self.prev_potential = None
 
         # Update quadruped
@@ -202,18 +198,11 @@ class QuadrupedEnv:
         radius = np.hypot(self.quadruped.position[0],
                           self.quadruped.position[2])
 
-        # ----------  a)  Pénalité d'inclinaison du corps (shaping potentiel) --------------
-        #   on ne pénalise que pitch (rotation[0]) et roll (rotation[2])
+        # ----------  a)  Pénalité d'inclinaison du corps (pénalité brute) --------------
         pitch, _, roll = self.quadruped.rotation
-        pitch = ((pitch + np.pi) % (2 * np.pi)) - np.pi # Normaliser les angles entre -π et π pour éviter les valeurs aberrantes
+        pitch = ((pitch + np.pi) % (2 * np.pi)) - np.pi  # Normaliser les angles entre -π et π
         roll = ((roll + np.pi) % (2 * np.pi)) - np.pi
-        # Potentiel d'inclinaison (plus il est proche de 0, mieux c'est)
-        rot_potential = - (abs(pitch) + abs(roll))
-        if self.prev_rot_potential is None:
-            delta_phi_rot = 0.0
-        else:
-            delta_phi_rot = GAMMA * rot_potential - self.prev_rot_potential
-        self.prev_rot_potential = rot_potential
+        tilt_penalty = -self.rot_penalty_coef * (abs(pitch) + abs(roll))
         
         # ----------  b)  Shaping "potentiel" vers le prochain cercle --------------
         # distance horizontale actuelle
@@ -237,12 +226,10 @@ class QuadrupedEnv:
         
         done = self.quadruped.position[1] < 4.0
         if done:
-            sparse_reward = -1.0
-
-        done = False # TODO: remove this
+            sparse_reward = -10.0
         
         # ----------  d)  Somme finale -------------------------
-        reward = sparse_reward + self.rot_penalty_coef * delta_phi_rot + self.potential_coef * delta_phi
+        reward = sparse_reward + tilt_penalty + self.potential_coef * delta_phi
         # -----------------------------------------------------
         end_step_time = time.time()
         step_time = end_step_time - start_step_time

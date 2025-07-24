@@ -4,7 +4,7 @@ import random as rd
 import torch
 
 # --- Configuration ---
-FPS = 60
+FPS = 60 * 2
 WINDOW_WIDTH = 1500
 WINDOW_HEIGHT = 800
 
@@ -38,15 +38,15 @@ SHOULDER_DELTA = 0.05
 ELBOW_DELTA = 0.05
 
 # --- Contact / Friction ----------------------------------------------------
-SLIP_THRESHOLD = 0.05      # le pied reste « collé » tant que |v_t| < SLIP_THRESHOLD cm/s
-STATIC_FRICTION_CAP  = 50.0     # impulsion maximale transmise au quadruped
+SLIP_THRESHOLD = 0.25      # le pied reste « collé » tant que |v_t| < SLIP_THRESHOLD cm/s
+STATIC_FRICTION_CAP  = 100.0     # impulsion maximale transmise au quadruped
 
 # ----- Debug Physics Simulation --------------------------------------
 DEBUG_CONTACT = False       
 
 # ----- Debug RL Training --------------------------------------
 DEBUG_RL_TRAIN = False
-DEBUG_RL_MODEL = True
+DEBUG_RL_MODEL = False
 DEBUG_RL_AGENT = False
 DEBUG_RL_VIZ = False
 

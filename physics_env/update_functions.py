@@ -8,16 +8,7 @@ from .config import MAX_VELOCITY, MAX_ANGULAR_VELOCITY, MAX_IMPULSE, MAX_AVERAGE
 from .cube import Cube3D
 from .joint import Joint
 from .quadruped import Quadruped
-
-def limit_vector(vec, max_val):
-    """
-    Limite un vecteur de manière douce en préservant sa direction
-    """
-    norm = np.linalg.norm(vec)
-    if norm <= max_val:
-        return vec
-    else:
-        return vec * (max_val / norm)
+from .helpers import limit_vector
 
 def update_ground_only_simple(object: Cube3D):
     # Mettre à jour les sommets du cube
@@ -386,7 +377,7 @@ def update_quadruped(quadruped: Quadruped):
     prev_vertices = quadruped.prev_vertices if quadruped.prev_vertices is not None else quadruped.rotated_vertices
 
     # Constantes physiques
-    mass = 1.0
+    mass = 5.0
     
     # Calculer le tenseur d'inertie à partir des vertices
     vertices = quadruped.rotated_vertices
@@ -417,29 +408,10 @@ def update_quadruped(quadruped: Quadruped):
     
     # Critères de contact dynamiques
     contact_threshold = max(CONTACT_THRESHOLD_BASE, abs(quadruped.velocity[1]) * DT * CONTACT_THRESHOLD_MULTIPLIER)
-    
-    # Trier les sommets du plus proche du sol au plus loin
-    sorted_vertices = sorted(quadruped.rotated_vertices, key=lambda v: v[1])
-    is_close_to_ground = sorted_vertices[0][1] <= contact_threshold
-    is_on_ground = sorted_vertices[7][1] <= contact_threshold
 
     # Limitation de vitesse douce
     quadruped.velocity = limit_vector(quadruped.velocity, MAX_VELOCITY)
     quadruped.angular_velocity = limit_vector(quadruped.angular_velocity, MAX_ANGULAR_VELOCITY)
-
-    # Amortissement réaliste avec restitution et friction
-    if is_close_to_ground:
-        # Réduire légèrement les vitesses horizontales et angulaires
-        quadruped.velocity[0] *= (1 - FRICTION * 0.1)
-        quadruped.velocity[2] *= (1 - FRICTION * 0.1)
-        quadruped.angular_velocity *= (1 - FRICTION * 0.1)
-    
-    if is_on_ground:
-        # Appliquer la restitution et la friction quand sur le sol
-        quadruped.velocity[1] *= -RESTITUTION  # Rebond avec coefficient de restitution
-        quadruped.velocity[0] *= (1 - FRICTION)  # Friction horizontale
-        quadruped.velocity[2] *= (1 - FRICTION)  # Friction horizontale
-        quadruped.angular_velocity *= (1 - FRICTION)  # Friction angulaire
 
     # Calculer la pénétration maximale sur tous les sommets
     penetrations = []
@@ -504,7 +476,7 @@ def update_quadruped(quadruped: Quadruped):
         quadruped.angular_velocity += avg_ang_t
 
     # --- Ajout : traction latérale basée sur t‑1 ---
-    mass = 1.0
+    mass = 5.0
     traction_imp, traction_ang = [], []
     for previous_vertex, current_vertex in zip(prev_vertices, quadruped.rotated_vertices):
         # le point est (et était) au sol ?

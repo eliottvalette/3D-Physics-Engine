@@ -40,6 +40,7 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
         print(f"[TRAIN] Début de la main")
 
     #### Boucle principale du jeu ####
+    steps_count = 0
     for step in range(MAX_STEPS):
         # Récupération de l'état actuel
         state = env.get_state()
@@ -59,6 +60,7 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
         agent.remember(state, action_vec, reward, done, next_state)
 
         data_collector.add_state(state)
+        steps_count += 1
     
         # Rendu graphique si activé
         if rendering and (episode % render_every == 0):
@@ -73,8 +75,11 @@ def run_episode(env: QuadrupedEnv, agent: QuadrupedAgent, epsilon: float, render
             break
 
     print(f"\n[TRAIN] === Résultats de l'épisode [{episode + 1}/{EPISODES}] ===")
+    print(f"[TRAIN] Nombre de steps: {steps_count}")
 
     metrics = agent.train_model(epsilon)
+    # Ajouter le nombre de steps aux métriques
+    metrics['steps_count'] = steps_count
     data_collector.add_metrics(metrics)
     data_collector.save_episode(episode)
 

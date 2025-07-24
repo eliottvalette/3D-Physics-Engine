@@ -200,6 +200,7 @@ class DataCollector:
         self.visualizer.plot_metrics(metrics_data)
         self.visualizer.plot_losses(metrics_data)
         self.visualizer.plot_state_value_distributions(metrics_data)
+        self.visualizer.plot_steps_per_episode(metrics_data)
         plt.close('all')
 
 class Visualizer:
@@ -228,7 +229,7 @@ class Visualizer:
             ('actor_loss', 'Actor Loss (Log-Prob * Advantage)', None, None),
             ('entropy', 'Entropie', None, None),
             ('total_loss', 'Actor Loss + Critic Loss', None, None),
-            ('epsilon', 'Epsilon', 1, 0),
+            ('epsilon', 'Epsilon (Exploration)', 1, 0),
         ]
         for idx, (metric_name, display_name, y_max, y_min) in enumerate(metrics_to_plot):
             ax = plt.subplot(2, 3, idx + 1)
@@ -270,6 +271,7 @@ class Visualizer:
         plt.close()
         self.plot_losses(metrics_data, dpi)
         self.plot_state_value_distributions(metrics_data, dpi)
+        self.plot_steps_per_episode(metrics_data, dpi)
 
     def plot_losses(self, metrics_data, dpi=500):
         """
@@ -331,6 +333,51 @@ class Visualizer:
         plt.savefig(os.path.join(self.viz_dir, 'state_value_distributions.jpg'), dpi=dpi, bbox_inches='tight')
         plt.close()
 
+    def plot_steps_per_episode(self, metrics_data, dpi=500):
+        """
+        Graphique dédié au nombre de steps par épisode avec une ligne de tendance.
+        """
+        episodes = []
+        steps_counts = []
+        
+        for episode_num, episode_metrics in metrics_data.items():
+            if 'steps_count' in episode_metrics and episode_metrics['steps_count'] is not None:
+                episodes.append(int(episode_num))
+                steps_counts.append(float(episode_metrics['steps_count']))
+        
+        if not steps_counts:
+            print("[VIZ] Aucune donnée de steps_count trouvée")
+            return
+        
+        plt.figure(figsize=(14, 8))
+        
+        # Graphique principal avec les points
+        plt.plot(episodes, steps_counts, 'o-', color='#006DAA', alpha=0.6, linewidth=1, markersize=3, label='Steps par épisode')
+        
+        # Ligne de tendance (moyenne mobile)
+        window = min(20, len(steps_counts) // 4)  # Fenêtre adaptative
+        if len(steps_counts) > window:
+            rolling_avg = pd.Series(steps_counts).rolling(window=window, min_periods=1).mean()
+            plt.plot(episodes, rolling_avg, color='#D62828', linewidth=3, label=f'Moyenne mobile ({window} épisodes)')
+        
+        # Ligne horizontale pour la moyenne globale
+        mean_steps = np.mean(steps_counts)
+        plt.axhline(y=mean_steps, color='#F77F00', linestyle='--', linewidth=2, label=f'Moyenne globale: {mean_steps:.1f}')
+        
+        plt.xlabel('Episode')
+        plt.ylabel('Nombre de Steps')
+        plt.title('Évolution du Nombre de Steps par Épisode')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        
+        # Ajouter des statistiques en texte
+        stats_text = f'Min: {min(steps_counts):.0f} | Max: {max(steps_counts):.0f} | Écart-type: {np.std(steps_counts):.1f}'
+        plt.figtext(0.5, 0.02, stats_text, ha='center', fontsize=10, bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.viz_dir, 'steps_per_episode.jpg'), dpi=dpi, bbox_inches='tight')
+        plt.close()
+
 if __name__ == "__main__":
     visualizer = Visualizer(start_epsilon=START_EPS, epsilon_decay=EPS_DECAY, epsilon_min=EPS_MIN, plot_interval=PLOT_INTERVAL, save_interval=SAVE_INTERVAL)
     # On les json une seule fois
@@ -345,5 +392,6 @@ if __name__ == "__main__":
     visualizer.plot_metrics(metrics_data)
     visualizer.plot_losses(metrics_data)
     visualizer.plot_state_value_distributions(metrics_data)
+    visualizer.plot_steps_per_episode(metrics_data)
 
     plt.close('all')
