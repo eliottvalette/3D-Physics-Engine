@@ -374,8 +374,7 @@ def update_quadruped(quadruped: Quadruped):
 
     # Mettre à jour les sommets du cube
     quadruped.rotated_vertices = quadruped.get_vertices()
-    prev_vertices = quadruped.prev_vertices if quadruped.prev_vertices is not None else quadruped.rotated_vertices
-
+    
     # Constantes physiques
     mass = 5.0
     
@@ -405,6 +404,7 @@ def update_quadruped(quadruped: Quadruped):
     
     # Recalculer les sommets après mise à jour
     quadruped.rotated_vertices = quadruped.get_vertices()
+    prev_vertices = quadruped.prev_vertices if quadruped.prev_vertices is not None else quadruped.rotated_vertices
     
     # Critères de contact dynamiques
     contact_threshold = max(CONTACT_THRESHOLD_BASE, abs(quadruped.velocity[1]) * DT * CONTACT_THRESHOLD_MULTIPLIER)
