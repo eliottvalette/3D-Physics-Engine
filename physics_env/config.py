@@ -51,7 +51,7 @@ DEBUG_RL_AGENT = False
 DEBUG_RL_VIZ = False
 
 # ----- RL Training Config --------------------------------------
-EPISODES = 10_000
+EPISODES = 30
 MAX_STEPS = 500
 
 START_EPS = 0.75
@@ -66,7 +66,8 @@ ALPHA = 0.001
 STATE_SIZE = 47
 ACTION_SIZE = 8
 
-RENDERING = True
+RENDERING = False
+PROFILING = True
 
 def set_seed(seed=42):
     rd.seed(seed)

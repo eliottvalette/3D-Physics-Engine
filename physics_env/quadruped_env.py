@@ -251,10 +251,10 @@ class QuadrupedEnv:
     def render(self, reward, done = False, step_time = 0.0):
         """Render the 3D world and UI."""
         self.screen.fill(BLACK)
-        self.ground.draw_premium(self.screen, self.camera)
+        self.ground.draw(self.screen, self.camera)
         self.ground.draw_axes(self.screen, self.camera)
         self.draw_checkpoint_circles()
-        self.quadruped.draw_premium(self.screen, self.camera)
+        self.quadruped.draw(self.screen, self.camera)
         self.render_ui(reward, done, step_time)
         pygame.display.flip()
     
