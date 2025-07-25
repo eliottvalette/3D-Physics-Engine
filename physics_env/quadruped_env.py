@@ -42,7 +42,7 @@ class QuadrupedEnv:
         "P - Afficher les sommets",
         "Échap - Quitter"
     ]
-    CIRCLE_RADII = [0.1, 0.3, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    CIRCLE_RADII = [0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     def __init__(self, rendering=True):
         """Initialize the game, Pygame, and world objects."""
@@ -68,13 +68,9 @@ class QuadrupedEnv:
         self.circle_radii   = self.CIRCLE_RADII
         self.circles_passed = set()         # stocke les rayons déjà comptés
         self.prev_radius   = None     # distance horizontale au pas t‑1
-        self.progress_coef = 2.0      # poids du reward dense
-        self.alive_bonus   = 0.05     # bonus constant par step
-        # Attributs pour la reward
-        self.prev_potential = None        # pour ∆Φ
-        self.potential_coef  = 3.0
         self.rot_penalty_coef = 0.5
         self.consecutive_steps_below_critical_height = 0
+        self.consecutive_steps_above_critical_height = 0
         
     def run(self):
         """Main game loop."""
@@ -201,62 +197,61 @@ class QuadrupedEnv:
         update_quadruped(self.quadruped)
 
         next_state = self.get_state()
-        # ---- REWARD ----------------------------------------------------- 
-        # distance horizontale à l'origine
-        radius = np.hypot(self.quadruped.position[0],
+        # ---- REWARD ---
+        # ----------  a) distance horizontale à l'origine (plus on est loin, plus on est récompensé) --------------
+        distance_to_origin = np.hypot(self.quadruped.position[0],
                           self.quadruped.position[2])
-        # ----------  b‑bis)  Récompense dense : progrès radial --------------
-        progress_reward = 0.0
-        if self.prev_radius is not None:
-            progress_reward = self.progress_coef * (radius - self.prev_radius)
-        self.prev_radius = radius
-
-        # ----------  a)  Pénalité d'inclinaison du corps (pénalité brute) --------------
-        pitch, _, roll = self.quadruped.rotation
-        pitch = ((pitch + np.pi) % (2 * np.pi)) - np.pi  # Normaliser les angles entre -π et π
-        roll = ((roll + np.pi) % (2 * np.pi)) - np.pi
-        tilt_penalty = -self.rot_penalty_coef * (abs(pitch) + abs(roll))
         
-        # ----------  b)  Shaping "potentiel" vers le prochain cercle --------------
-        # distance horizontale actuelle
-        # prochain cercle non encore franchi
-        remaining = [r for r in self.circle_radii if r not in self.circles_passed]
-        next_target = min(remaining) if remaining else self.circle_radii[-1]
-        rho_t = abs(next_target - radius)          # distance à l'objectif courant
-        phi_t = -rho_t                             # potentiel
-        if self.prev_potential is None:
-            delta_phi = 0.0                        # premier pas
+        if self.prev_radius is not None and self.prev_radius < distance_to_origin :
+            distance_reward = 0.2 + (distance_to_origin - self.prev_radius) * 20
+        else :
+            distance_reward = - 0.2
+
+        self.prev_radius = distance_to_origin
+        # ----------  b)  Pénalité d'inclinaison du corps (pénalité brute) --------------
+        pitch, yaw, roll = self.quadruped.rotation
+        pitch = ((pitch + np.pi) % (2 * np.pi)) - np.pi
+        yaw = ((yaw + np.pi) % (2 * np.pi)) - np.pi
+        roll = ((roll + np.pi) % (2 * np.pi)) - np.pi
+        if (abs(pitch) + abs(yaw) + abs(roll) > 0.1):
+            tilt_penalty = -self.rot_penalty_coef * (abs(pitch) + abs(yaw) + abs(roll)) 
         else:
-            delta_phi = GAMMA * phi_t - self.prev_potential
-        self.prev_potential = phi_t                # mise à jour pour le pas suivant
+            tilt_penalty = 0.0
         
         # ----------  c)  Récompense principale --------------
         sparse_reward = 0.0
         for r in self.circle_radii:
-            if radius >= r and r not in self.circles_passed:
-                sparse_reward += 10.0
+            if distance_to_origin >= r and r not in self.circles_passed:
+                sparse_reward += 2.0
                 self.circles_passed.add(r)
-        
+
+        # ----------  Termination checker --------------
+
         below_critical_height = self.quadruped.position[1] < 4.0
         if below_critical_height:
-            sparse_reward = -0.5
+            sparse_reward = -1.0
+
+        above_critical_height = self.quadruped.position[1] > 5.5
+        if above_critical_height:
+            sparse_reward = -1.0
 
         if below_critical_height:
             self.consecutive_steps_below_critical_height += 1
+        elif above_critical_height:
+            self.consecutive_steps_above_critical_height += 1
         else:
             self.consecutive_steps_below_critical_height = 0
+            self.consecutive_steps_above_critical_height = 0
 
-        if self.consecutive_steps_below_critical_height > 50:
+        if self.consecutive_steps_below_critical_height > 50 or self.consecutive_steps_above_critical_height > 20:
             done = True
         else:
-            done = False
+            done = False 
 
         # ----------  d)  Somme finale -------------------------
-        reward = (sparse_reward
-                  + tilt_penalty
-                  + self.potential_coef * delta_phi
-                  + progress_reward
-                  + self.alive_bonus)
+        reward = (distance_reward
+                  + sparse_reward
+                  + tilt_penalty)
         # -----------------------------------------------------
         end_step_time = time.time()
         step_time = end_step_time - start_step_time
@@ -267,10 +262,10 @@ class QuadrupedEnv:
     def render(self, reward, done = False, step_time = 0.0):
         """Render the 3D world and UI."""
         self.screen.fill(BLACK)
-        self.ground.draw(self.screen, self.camera)
+        self.ground.draw_premium(self.screen, self.camera)
         self.ground.draw_axes(self.screen, self.camera)
         self.draw_checkpoint_circles()
-        self.quadruped.draw(self.screen, self.camera)
+        self.quadruped.draw_premium(self.screen, self.camera)
         self.render_ui(reward, done, step_time)
         pygame.display.flip()
     

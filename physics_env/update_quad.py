@@ -4,6 +4,7 @@ import numpy as np
 
 from .config import DT, GRAVITY, SLIP_THRESHOLD, FRICTION, CONTACT_THRESHOLD_BASE, CONTACT_THRESHOLD_MULTIPLIER
 from .config import MAX_VELOCITY, MAX_ANGULAR_VELOCITY, MAX_IMPULSE, MAX_AVERAGE_IMPULSE, DEBUG_CONTACT, STATIC_FRICTION_CAP
+from .config import G_STAB, CONTACT_VERTICES_MAX
 from .quadruped import Quadruped
 from .helpers import limit_vector
 
@@ -20,7 +21,10 @@ def update_quadruped(quadruped: Quadruped):
     """
 
     # Mettre à jour les sommets du cube
+    quadruped._needs_update = True
     quadruped.rotated_vertices = quadruped.get_vertices()
+    prev_vertices = quadruped.prev_vertices if quadruped.prev_vertices is not None else quadruped.rotated_vertices
+
     
     # --- paramètres corps -----------------------------
     mass = quadruped.mass          # ≈ 4.4 kg
@@ -35,7 +39,6 @@ def update_quadruped(quadruped: Quadruped):
     
     # Recalculer les sommets après mise à jour
     quadruped.rotated_vertices = quadruped.get_vertices()
-    prev_vertices = quadruped.prev_vertices if quadruped.prev_vertices is not None else quadruped.rotated_vertices
     
     # Critères de contact dynamiques
     contact_threshold = max(CONTACT_THRESHOLD_BASE, abs(quadruped.velocity[1]) * DT * CONTACT_THRESHOLD_MULTIPLIER)
@@ -148,5 +151,5 @@ def update_quadruped(quadruped: Quadruped):
         quadruped.velocity += limit_vector(np.mean(traction_imp, axis=0), MAX_AVERAGE_IMPULSE)
         quadruped.angular_velocity += limit_vector(np.mean(traction_ang, axis=0), MAX_AVERAGE_IMPULSE)
 
-    # --- Mémorise l’état pour la frame suivante ---
+    # -----Mémoriser l’état pour la frame suivante --------
     quadruped.prev_vertices = quadruped.rotated_vertices.copy()
