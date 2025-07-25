@@ -2,7 +2,7 @@
 import numpy as np
 
 
-from .config import DT, GRAVITY, RESTITUTION, FRICTION, CONTACT_THRESHOLD_BASE, CONTACT_THRESHOLD_MULTIPLIER
+from .config import DT, GRAVITY, SLIP_THRESHOLD, FRICTION, CONTACT_THRESHOLD_BASE, CONTACT_THRESHOLD_MULTIPLIER
 from .config import MAX_VELOCITY, MAX_ANGULAR_VELOCITY, MAX_IMPULSE, MAX_AVERAGE_IMPULSE, DEBUG_CONTACT, STATIC_FRICTION_CAP
 from .quadruped import Quadruped
 from .helpers import limit_vector
@@ -22,25 +22,9 @@ def update_quadruped(quadruped: Quadruped):
     # Mettre à jour les sommets du cube
     quadruped.rotated_vertices = quadruped.get_vertices()
     
-    # Constantes physiques
-    mass = 5.0
-    
-    # Calculer le tenseur d'inertie à partir des vertices
-    vertices = quadruped.rotated_vertices
-    x_coords = [v[0] for v in vertices]
-    y_coords = [v[1] for v in vertices]
-    z_coords = [v[2] for v in vertices]
-    
-    x_range = max(x_coords) - min(x_coords)
-    y_range = max(y_coords) - min(y_coords)
-    z_range = max(z_coords) - min(z_coords)
-    
-    # Tenseur d'inertie approximatif basé sur les dimensions calculées
-    I_xx = (1/12) * mass * (y_range**2 + z_range**2)
-    I_yy = (1/12) * mass * (x_range**2 + z_range**2)
-    I_zz = (1/12) * mass * (x_range**2 + y_range**2)
-    
-    I = np.array([I_xx, I_yy, I_zz])
+    # --- paramètres corps -----------------------------
+    mass = quadruped.mass          # ≈ 4.4 kg
+    I    = quadruped.I_body.copy() # (3,)
 
     # Appliquer la gravité au centre de masse
     quadruped.velocity += GRAVITY * DT
@@ -78,7 +62,8 @@ def update_quadruped(quadruped: Quadruped):
             
             # Enregistrer la pénétration
             penetrations.append(-vertex[1])
-            
+            if DEBUG_CONTACT:
+                print(f"[CONTACT] Pénétration vertex: {-vertex[1]:.5f}  pos: {vertex}")
             # Si le sommet descend, calculer l'impulsion nécessaire
             if vertex_velocity[1] < 0:
                 # Impulsion nécessaire pour annuler la vitesse verticale
@@ -106,12 +91,16 @@ def update_quadruped(quadruped: Quadruped):
     # Appliquer la correction de position une seule fois
     if penetrations:
         max_penetration = max(penetrations)
+        if DEBUG_CONTACT:
+            print(f"[CORRECTION] Correction de position appliquée: +{max_penetration:.5f}")
         quadruped.position[1] += max_penetration
 
     # --- Moyenne et application des impulsions verticales ---
     if collision_impulses_normal:
         avg_imp_n = limit_vector(np.mean(collision_impulses_normal, axis=0), MAX_AVERAGE_IMPULSE)
         avg_ang_n = limit_vector(np.mean(collision_angular_impulses_normal, axis=0), MAX_AVERAGE_IMPULSE)
+        if DEBUG_CONTACT:
+            print(f"[IMPULSES N] Moyenne impulsion normale: {avg_imp_n}, angulaire: {avg_ang_n}")
         quadruped.velocity += avg_imp_n
         quadruped.angular_velocity += avg_ang_n
 
@@ -119,6 +108,8 @@ def update_quadruped(quadruped: Quadruped):
     if collision_impulses_tangent:
         avg_imp_t = limit_vector(np.mean(collision_impulses_tangent, axis=0), MAX_AVERAGE_IMPULSE)   # mets un plafond dédié si besoin
         avg_ang_t = limit_vector(np.mean(collision_angular_impulses_tangent, axis=0), MAX_AVERAGE_IMPULSE)
+        if DEBUG_CONTACT:
+            print(f"[IMPULSES T] Moyenne impulsion tangentielle: {avg_imp_t}, angulaire: {avg_ang_t}")
         quadruped.velocity += avg_imp_t
         quadruped.angular_velocity += avg_ang_t
 
@@ -134,9 +125,9 @@ def update_quadruped(quadruped: Quadruped):
         current_vertex[1], previous_vertex[1] = 0, 0 # Normalisation de la Hauteur, on considère que les deux points restent au sol pendant la cinématique
         delta = current_vertex - previous_vertex
         delta[1] = 0.0  # composante tangentielle
-        if np.linalg.norm(delta) < 1e-8:
+        # --- DEAD ZONE : on ignore les déplacements < SLIP_THRESHOLD*DT ---
+        if np.linalg.norm(delta) < SLIP_THRESHOLD * DT:
             continue
-        
         # vitesse “imposée” au sol → impulsion opposée sur le corps
         J_needed = -mass * delta / DT  # N·s
         J_cap = STATIC_FRICTION_CAP * DT  # adhérence max
@@ -148,7 +139,12 @@ def update_quadruped(quadruped: Quadruped):
         traction_ang.append(
             np.divide(np.cross(r, J), I, out=np.zeros(3), where=I!=0)
         )
+        if DEBUG_CONTACT:
+            print(f"[TRACTION] delta: {delta}, J_needed: {J_needed}, J: {J}")
+
     if traction_imp:
+        if DEBUG_CONTACT:
+            print(f"[TRACTION] Moyenne traction linéaire: {np.mean(traction_imp, axis=0)}, angulaire: {np.mean(traction_ang, axis=0)}")
         quadruped.velocity += limit_vector(np.mean(traction_imp, axis=0), MAX_AVERAGE_IMPULSE)
         quadruped.angular_velocity += limit_vector(np.mean(traction_ang, axis=0), MAX_AVERAGE_IMPULSE)
 

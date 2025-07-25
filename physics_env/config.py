@@ -38,11 +38,11 @@ SHOULDER_DELTA = 0.05
 ELBOW_DELTA = 0.05
 
 # --- Contact / Friction ----------------------------------------------------
-SLIP_THRESHOLD = 0.25      # le pied reste « collé » tant que |v_t| < SLIP_THRESHOLD cm/s
+SLIP_THRESHOLD = 0.05      # le pied reste « collé » tant que |v_t| < SLIP_THRESHOLD cm/s
 STATIC_FRICTION_CAP  = 50.0     # impulsion maximale transmise au quadruped
 
 # ----- Debug Physics Simulation --------------------------------------
-DEBUG_CONTACT = False       
+DEBUG_CONTACT = True       
 
 # ----- Debug RL Training --------------------------------------
 DEBUG_RL_TRAIN = False

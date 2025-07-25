@@ -6,6 +6,11 @@ from .camera import Camera3D
 import copy
 import math
 
+# --- MASSES (kg) ---------------------------------------------------
+BODY_MASS        = 3.0        # tronc
+UPPER_LEG_MASS   = 0.35       # ×4
+LOWER_LEG_MASS   = 0.15       # ×4
+
 WINDOW_WIDTH = 1500
 WINDOW_HEIGHT = 800
 
@@ -45,6 +50,8 @@ class Quadruped:
         self.rotated_vertices = None  # Correction : initialisé à None avant tout appel
         self._needs_update   = False            # recalcul différé
         self.rotated_vertices = self.get_vertices()
+        # --- masse & inertie réalistes --------------------------
+        self.mass, self.I_body = self._compute_mass_inertia()
     
     def reset_random(self):
         self.position = self.initial_position.copy()
@@ -386,3 +393,44 @@ class Quadruped:
                 
                 # Optionnel : dessiner les contours des faces pour plus de définition
                 pygame.draw.polygon(screen, (50, 50, 50), points_2d, 1)
+
+    # ------------------------------------------------------------------
+    #  Inertie ≈ somme des solides élémentaires : 1 parallélépipède + 8 barreaux
+    # ------------------------------------------------------------------
+    def _compute_mass_inertia(self):
+        """
+        Retourne (masse_totale, I_body) :
+        I_body = np.array([Ixx, Iyy, Izz]) dans le repère du corps (non tourné)
+        """
+        # 0‑‑7 = tronc
+        body_vs = self.initial_vertices[0:8]
+        xs = [v[0] for v in body_vs]
+        ys = [v[1] for v in body_vs]
+        zs = [v[2] for v in body_vs]
+        a, b, c = (max(xs) - min(xs),
+                   max(ys) - min(ys),
+                   max(zs) - min(zs))               # côtés du pavé
+
+        I_body = np.zeros(3)
+
+        # --- 1) Tronc plein (parallélépipède) -------------------
+        I_body += np.array([
+            BODY_MASS * (b**2 + c**2) / 12,
+            BODY_MASS * (a**2 + c**2) / 12,
+            BODY_MASS * (a**2 + b**2) / 12
+        ])
+
+        # --- 2) Quatre upper‑legs (barreaux verticals) ----------
+        # On approxime chaque barre comme un cylindre / bâton fin (axe y)
+        leg_len_u = 0.7 * b                  # ≈ 70 % hauteur tronc
+        I_bar_u   = UPPER_LEG_MASS * (leg_len_u**2) / 12
+        I_body += 4 * np.array([I_bar_u, 0, I_bar_u])   # autour de l’axe y
+
+        # --- 3) Quatre lower‑legs (barreaux verticaux) ----------
+        leg_len_l = 0.9 * b
+        I_bar_l   = LOWER_LEG_MASS * (leg_len_l**2) / 12
+        I_body += 4 * np.array([I_bar_l, 0, I_bar_l])
+
+        # totale :
+        mass_tot = BODY_MASS + 4 * (UPPER_LEG_MASS + LOWER_LEG_MASS)
+        return mass_tot, I_body
