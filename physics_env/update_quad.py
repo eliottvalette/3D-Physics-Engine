@@ -32,7 +32,7 @@ def update_quadruped(quadruped: Quadruped):
     z_coords = [v[2] for v in vertices]
     
     x_range = max(x_coords) - min(x_coords)
-    y_range = max(y_coords) - min(y_coords) * 0.8 # Le body du quadruped est situé en haut
+    y_range = max(y_coords) - min(y_coords)
     z_range = max(z_coords) - min(z_coords)
     
     # Tenseur d'inertie approximatif basé sur les dimensions calculées

@@ -67,7 +67,9 @@ class QuadrupedEnv:
 
         self.circle_radii   = self.CIRCLE_RADII
         self.circles_passed = set()         # stocke les rayons déjà comptés
-        
+        self.prev_radius   = None     # distance horizontale au pas t‑1
+        self.progress_coef = 2.0      # poids du reward dense
+        self.alive_bonus   = 0.05     # bonus constant par step
         # Attributs pour la reward
         self.prev_potential = None        # pour ∆Φ
         self.potential_coef  = 3.0
@@ -188,10 +190,12 @@ class QuadrupedEnv:
             self.quadruped.reset_random()
             self.circles_passed.clear()
             self.prev_potential = None
+            self.prev_radius    = None
         if reset_actions[1]:
             self.quadruped.reset()
             self.circles_passed.clear()
             self.prev_potential = None
+            self.prev_radius    = None
 
         # Update quadruped
         update_quadruped(self.quadruped)
@@ -201,6 +205,11 @@ class QuadrupedEnv:
         # distance horizontale à l'origine
         radius = np.hypot(self.quadruped.position[0],
                           self.quadruped.position[2])
+        # ----------  b‑bis)  Récompense dense : progrès radial --------------
+        progress_reward = 0.0
+        if self.prev_radius is not None:
+            progress_reward = self.progress_coef * (radius - self.prev_radius)
+        self.prev_radius = radius
 
         # ----------  a)  Pénalité d'inclinaison du corps (pénalité brute) --------------
         pitch, _, roll = self.quadruped.rotation
@@ -243,7 +252,11 @@ class QuadrupedEnv:
             done = False
 
         # ----------  d)  Somme finale -------------------------
-        reward = sparse_reward + tilt_penalty + self.potential_coef * delta_phi
+        reward = (sparse_reward
+                  + tilt_penalty
+                  + self.potential_coef * delta_phi
+                  + progress_reward
+                  + self.alive_bonus)
         # -----------------------------------------------------
         end_step_time = time.time()
         step_time = end_step_time - start_step_time

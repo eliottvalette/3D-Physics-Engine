@@ -3,7 +3,7 @@ __pycache__/
 saved_models/
 viz_json/
 profiling/training_profile.prof
-files_to_send_to_chat.py
+files_to_send.py
 code_to_send_physics.txt
 code_to_send_rl.txt
 code_to_send_full.txt
