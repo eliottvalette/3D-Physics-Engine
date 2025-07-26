@@ -226,7 +226,7 @@ class QuadrupedEnv:
 
         # ----------  Termination checker --------------
 
-        below_critical_height = self.quadruped.position[1] < 4.0
+        below_critical_height = self.quadruped.position[1] < 4.5
         if below_critical_height:
             sparse_reward = -1.0
 
@@ -257,15 +257,14 @@ class QuadrupedEnv:
 
         return next_state, reward, done, step_time
 
-
-    def render(self, reward, done = False, step_time = 0.0):
+    def render(self, reward, done = False, step_time = 0.0, state_value = None):
         """Render the 3D world and UI."""
         self.screen.fill(BLACK)
         self.ground.draw_premium(self.screen, self.camera)
         self.ground.draw_axes(self.screen, self.camera)
         self.draw_checkpoint_circles()
         self.quadruped.draw_premium(self.screen, self.camera)
-        self.render_ui(reward, done, step_time)
+        self.render_ui(reward, done, step_time, state_value)
         pygame.display.flip()
     
     def get_state(self):
@@ -273,7 +272,7 @@ class QuadrupedEnv:
         state = self.quadruped.get_state()
         return state
 
-    def render_ui(self, reward, done = False, step_time = 0.0):
+    def render_ui(self, reward, done = False, step_time = 0.0, state_value = None):
         """Render the UI overlays (info and instructions)."""
         # Info texts
         pos_text = f"Position: ({self.quadruped.position[0]:.2f}, {self.quadruped.position[1]:.2f}, {self.quadruped.position[2]:.2f})"
@@ -314,6 +313,12 @@ class QuadrupedEnv:
         for i, instruction in enumerate(self.INSTRUCTIONS):
             inst_surface = self.font.render(instruction, True, GRAY)
             self.screen.blit(inst_surface, (10, WINDOW_HEIGHT - 140 + i * 20))
+
+        # State value
+        if state_value is not None:
+            state_value_text = f"State value: {state_value:.2f}"
+            state_value_surface = self.font.render(state_value_text, True, WHITE)
+            self.screen.blit(state_value_surface, (WINDOW_WIDTH - 200, 10))
 
     def draw_checkpoint_circles(self):
         """Dessine les cercles de récompense au sol."""

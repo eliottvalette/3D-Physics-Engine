@@ -15,7 +15,7 @@ from physics_env.config import DEBUG_RL_VIZ, START_EPS, EPS_DECAY, EPS_MIN, PLOT
 # PLAYERS = ['Player_0', 'Player_1', 'Player_2']
 
 class DataCollector:
-    def __init__(self, save_interval, plot_interval, start_epsilon, epsilon_decay, epsilon_min, output_dir="viz_json"):
+    def __init__(self, save_interval, plot_interval, start_epsilon, epsilon_decay, epsilon_min, output_dir="temp_viz_json"):
         """
         Initialise le collecteur de données.
         
@@ -207,7 +207,7 @@ class Visualizer:
     """
     Visualise les métriques d'entraînement RL (quadruped)
     """
-    def __init__(self, start_epsilon, epsilon_decay, epsilon_min, plot_interval, save_interval, output_dir="viz_json", viz_dir=None):
+    def __init__(self, start_epsilon, epsilon_decay, epsilon_min, plot_interval, save_interval, output_dir="temp_viz_json", viz_dir=None):
         self.output_dir = output_dir
         self.viz_dir = viz_dir or "visualizations"
         self.start_epsilon = start_epsilon

@@ -1,18 +1,12 @@
 # train.py
 import os
-import gc
 import numpy as np
-import random as rd
-import pygame
-import torch
 import time
-import copy
 import traceback
 from visualization import DataCollector
 from agent import QuadrupedAgent
 from physics_env.quadruped_env import QuadrupedEnv
 from typing import List, Tuple
-import json
 from physics_env.config import EPISODES, EPS_DECAY, START_EPS, EPS_MIN, DEBUG_RL_TRAIN, SAVE_INTERVAL, PLOT_INTERVAL, MAX_STEPS
 from helpers_rl import save_models
 
@@ -136,8 +130,16 @@ def main_training_loop(agent: QuadrupedAgent, episodes: int, rendering: bool, re
         save_models(agent, episode)
         print("[TRAIN] Generating visualization...")
         data_collector.force_visualization()
+
+        # delete temp_viz_json files
+        for file in os.listdir("temp_viz_json"):
+            os.remove(os.path.join("temp_viz_json", file))
         
     finally:
         save_models(agent, episode)
         print("[TRAIN] Generating visualization...")
         data_collector.force_visualization()
+
+        # delete temp_viz_json files
+        for file in os.listdir("temp_viz_json"):
+            os.remove(os.path.join("temp_viz_json", file))

@@ -220,12 +220,14 @@ class Quadruped:
             self.velocity,
             self.rotation,
             self.shoulder_angles,
-            self.elbow_angles
+            self.shoulder_velocities,
+            self.elbow_angles,
+            self.elbow_velocities
         ])
 
         # 1. Update les sommets
-        vertices = self.get_vertices()  # Utiliser get_vertices() pour s'assurer que les vertices sont à jour
-
+        vertices = self.get_vertices() 
+        
         # 2. Les min/max X Y Z du Body
         body_vertices = vertices[0:8]
         body_xs = [v[0] for v in body_vertices]
