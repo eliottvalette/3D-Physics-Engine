@@ -87,10 +87,10 @@ def update_quadruped(quadruped: Quadruped):
     
     # Appliquer la correction de position une seule fois
     if penetrations:
-        max_penetration = max(penetrations)
+        mean_penetration = np.mean(penetrations)
         if DEBUG_CONTACT:
-            print(f"[CORRECTION] Correction de position appliquée: +{max_penetration * 0.5:.5f}")
-        quadruped.position[1] += max_penetration * 0.5
+            print(f"[CORRECTION] Correction de position appliquée: +{mean_penetration:.5f}")
+        quadruped.position[1] += mean_penetration * 0.2
 
     # --- Moyenne et application des impulsions verticales ---
     if collision_impulses_normal:

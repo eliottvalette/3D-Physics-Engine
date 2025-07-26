@@ -198,9 +198,8 @@ class QuadrupedEnv:
 
         next_state = self.get_state()
         # ---- REWARD ---
-        # ----------  a) distance horizontale à l'origine (plus on est loin, plus on est récompensé) --------------
-        distance_to_origin = np.hypot(self.quadruped.position[0],
-                          self.quadruped.position[2])
+        # ----------  a) distance à l'origine (suivant Z uniquement) --------------
+        distance_to_origin = abs(self.quadruped.position[2])
         
         if self.prev_radius is not None and self.prev_radius < distance_to_origin :
             distance_reward = 0.2 + (distance_to_origin - self.prev_radius) * 20
