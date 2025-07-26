@@ -15,10 +15,10 @@ WINDOW_WIDTH = 1500
 WINDOW_HEIGHT = 800
 
 class Quadruped:
-    def __init__(self, position, vertices=None, vertices_dict=None, rotation = np.array([0.0, 0.0, 0.0]), velocity = np.array([0.0, 0.0, 0.0]), color = (255, 255, 255)):
+    def __init__(self, position, vertices, vertices_dict, rotation = np.array([0.0, 0.0, 0.0]), velocity = np.array([0.0, 0.0, 0.0]), color = (255, 255, 255)):
         self.initial_position = position.copy()
         self.initial_velocity = velocity.copy()
-        self.initial_rotation = np.array([0.0, 0.0, 0.0]).copy()
+        self.initial_rotation = rotation.copy()
         self.initial_angular_velocity = np.array([0.0, 0.0, 0.0]).copy()
         self.initial_rotation = rotation.copy()
         self.initial_vertices = vertices.copy()
@@ -39,19 +39,24 @@ class Quadruped:
         # Articulations (épaules et coudes) - angles en radians
         # Épaules: 0=Front Right, 1=Front Left, 2=Back Right, 3=Back Left
         self.shoulder_angles = np.array([0.0, 0.0, 0.0, 0.0])
+        self.shoulder_velocities = np.array([0.0, 0.0, 0.0, 0.0])
         # Coudes: 0=Front Right, 1=Front Left, 2=Back Right, 3=Back Left
         self.elbow_angles = np.array([0.0, 0.0, 0.0, 0.0])
+        self.elbow_velocities = np.array([0.0, 0.0, 0.0, 0.0])
         
         # Angles initiaux
         self.initial_shoulder_angles = self.shoulder_angles.copy()
         self.initial_elbow_angles = self.elbow_angles.copy()
-
+        self.initial_shoulder_velocities = self.shoulder_velocities.copy()
+        self.initial_elbow_velocities = self.elbow_velocities.copy()
         self.prev_vertices = None
-        self.rotated_vertices = None  # Correction : initialisé à None avant tout appel
-        self._needs_update   = False            # recalcul différé
-        self.rotated_vertices = self.get_vertices()
+        self._needs_update = True
+        self.rotated_vertices = None
+        
         # --- masse & inertie réalistes --------------------------
         self.mass, self.I_body = self._compute_mass_inertia()
+        self.rotated_vertices = self.get_vertices()
+        self.motor_delay =  10
     
     def reset_random(self):
         self.position = self.initial_position.copy()
@@ -61,8 +66,10 @@ class Quadruped:
         self.angular_velocity = self.initial_angular_velocity.copy() + np.random.rand(3)
         self.shoulder_angles = self.initial_shoulder_angles.copy()
         self.elbow_angles = self.initial_elbow_angles.copy()
+        self.shoulder_velocities = self.initial_shoulder_velocities.copy()
+        self.elbow_velocities = self.initial_elbow_velocities.copy()
+        self._needs_update = True
         self.rotated_vertices = self.get_vertices()
-        self._needs_update   = False
     
     def reset(self):
         self.position = self.initial_position.copy()
@@ -72,15 +79,14 @@ class Quadruped:
         self.angular_velocity = self.initial_angular_velocity.copy()
         self.shoulder_angles = self.initial_shoulder_angles.copy()
         self.elbow_angles = self.initial_elbow_angles.copy()
+        self.shoulder_velocities = self.initial_shoulder_velocities.copy()
+        self.elbow_velocities = self.initial_elbow_velocities.copy()
+        self._needs_update = True
         self.rotated_vertices = self.get_vertices()
-        self._needs_update   = False
     
     def get_vertices(self):
         """Retourne les vertices. Recalcule uniquement si nécessaire."""
-        if not getattr(self, "_needs_update", False):
-            # Correction : si self.rotated_vertices n'existe pas encore, retourne self.vertices
-            if self.rotated_vertices is None:
-                return self.vertices.copy()
+        if not self._needs_update and self.rotated_vertices is not None:
             return self.rotated_vertices
 
         # ---------- pré‑calculs --------------
@@ -179,20 +185,33 @@ class Quadruped:
         self._needs_update = True
     
     def adjust_shoulder_angle(self, leg_index, delta_angle):
-        new_angle = self.shoulder_angles[leg_index] + delta_angle
+        if delta_angle > 0:
+            self.shoulder_velocities[leg_index] = np.clip(self.shoulder_velocities[leg_index] + (delta_angle / self.motor_delay), 0, delta_angle)
+        elif delta_angle < 0:
+            self.shoulder_velocities[leg_index] = np.clip(self.shoulder_velocities[leg_index] + (delta_angle / self.motor_delay), delta_angle, 0)
+        else:
+            self.shoulder_velocities[leg_index] = 0
+
+        new_angle = self.shoulder_angles[leg_index] + self.shoulder_velocities[leg_index]
         capped_angle = max(-math.pi/2, min(math.pi/2, new_angle))
         self.shoulder_angles[leg_index] = capped_angle
         self._needs_update = True
     
     def adjust_elbow_angle(self, leg_index, delta_angle):
-        new_angle = self.elbow_angles[leg_index] + delta_angle
+        if delta_angle > 0:
+            self.elbow_velocities[leg_index] = np.clip(self.elbow_velocities[leg_index] + (delta_angle / self.motor_delay), 0, delta_angle)
+        elif delta_angle < 0:   
+            self.elbow_velocities[leg_index] = np.clip(self.elbow_velocities[leg_index] + (delta_angle / self.motor_delay), delta_angle, 0)
+        else:
+            self.elbow_velocities[leg_index] = 0
+        new_angle = self.elbow_angles[leg_index] + self.elbow_velocities[leg_index]
         capped_angle = max(-math.pi/2, min(math.pi/2, new_angle))
         self.elbow_angles[leg_index] = capped_angle
         self._needs_update = True
     
     def get_state(self):
         """
-        Retourne l’état étendu du quadruped.
+        Retourne l'état étendu du quadruped.
         
         """
         # infos de base
@@ -205,7 +224,7 @@ class Quadruped:
         ])
 
         # 1. Update les sommets
-        vertices = self.rotated_vertices  # liste de np.array([x,y,z])
+        vertices = self.get_vertices()  # Utiliser get_vertices() pour s'assurer que les vertices sont à jour
 
         # 2. Les min/max X Y Z du Body
         body_vertices = vertices[0:8]
@@ -248,9 +267,12 @@ class Quadruped:
 
     def draw(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le quadruped 3D avec projection et profondeur (arêtes seulement)"""        
+        # S'assurer que les vertices sont à jour
+        vertices = self.get_vertices()
+        
         # Projeter tous les sommets
         projected_vertices = []
-        for vertex in self.rotated_vertices:
+        for vertex in vertices:
             projected = camera.project_3d_to_2d(vertex)
             if projected:  # projected peut etre None si le point est derrière la caméra
                 projected_vertices.append(projected)
@@ -304,9 +326,12 @@ class Quadruped:
     
     def draw_premium(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le quadruped 3D avec faces pleines et dégradé de gris basé sur la profondeur"""
+        # S'assurer que les vertices sont à jour
+        vertices = self.get_vertices()
+        
         # Projeter tous les sommets
         projected_vertices = []
-        for vertex in self.rotated_vertices:
+        for vertex in vertices:
             projected = camera.project_3d_to_2d(vertex)
             if projected:  # projected peut etre None si le point est derrière la caméra
                 projected_vertices.append(projected)
@@ -400,7 +425,7 @@ class Quadruped:
     def _compute_mass_inertia(self):
         """
         Retourne (masse_totale, I_body) :
-        I_body = np.array([Ixx, Iyy, Izz]) dans le repère du corps (non tourné)
+        I_body = np.array([Ixx, Iyy, Izz]) dans le repère du corps (non tourné)
         """
         # 0‑‑7 = tronc
         body_vs = self.initial_vertices[0:8]
@@ -422,15 +447,16 @@ class Quadruped:
 
         # --- 2) Quatre upper‑legs (barreaux verticals) ----------
         # On approxime chaque barre comme un cylindre / bâton fin (axe y)
-        leg_len_u = 0.7 * b                  # ≈ 70 % hauteur tronc
+        leg_len_u = 0.7 * b                  # ≈ 70 % hauteur tronc
         I_bar_u   = UPPER_LEG_MASS * (leg_len_u**2) / 12
-        I_body += 4 * np.array([I_bar_u, 0, I_bar_u])   # autour de l’axe y
+        I_body += 4 * np.array([I_bar_u, 0, I_bar_u])   # autour de l'axe y
 
         # --- 3) Quatre lower‑legs (barreaux verticaux) ----------
         leg_len_l = 0.9 * b
         I_bar_l   = LOWER_LEG_MASS * (leg_len_l**2) / 12
         I_body += 4 * np.array([I_bar_l, 0, I_bar_l])
 
-        # totale :
+        # totale :
         mass_tot = BODY_MASS + 4 * (UPPER_LEG_MASS + LOWER_LEG_MASS)
+
         return mass_tot, I_body

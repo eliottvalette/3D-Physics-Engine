@@ -21,12 +21,12 @@ def update_quadruped(quadruped: Quadruped):
 
     # Mettre à jour les sommets du cube
     quadruped._needs_update = True
-    quadruped.rotated_vertices = quadruped.get_vertices()
-    prev_vertices = quadruped.prev_vertices if quadruped.prev_vertices is not None else quadruped.rotated_vertices
+    current_vertices = quadruped.get_vertices()
+    prev_vertices = quadruped.prev_vertices if quadruped.prev_vertices is not None else current_vertices
 
     
     # --- paramètres corps -----------------------------
-    mass = quadruped.mass          # ≈ 4.4 kg
+    mass = quadruped.mass          # ≈ 4.4 kg
     I    = quadruped.I_body.copy() # (3,)
 
     # Appliquer la gravité au centre de masse
@@ -37,7 +37,7 @@ def update_quadruped(quadruped: Quadruped):
     quadruped.rotation = (quadruped.rotation + quadruped.angular_velocity * DT) % (2 * np.pi)
     
     # Recalculer les sommets après mise à jour
-    quadruped.rotated_vertices = quadruped.get_vertices()
+    current_vertices = quadruped.get_vertices()
     
     # Critères de contact dynamiques
     contact_threshold = max(CONTACT_THRESHOLD_BASE, abs(quadruped.velocity[1]) * DT * CONTACT_THRESHOLD_MULTIPLIER)
@@ -55,7 +55,7 @@ def update_quadruped(quadruped: Quadruped):
     collision_impulses_tangent = []
     collision_angular_impulses_tangent = []
     
-    for vertex in quadruped.rotated_vertices:
+    for vertex in current_vertices:
         if vertex[1] < 0:
             # Position du sommet par rapport au centre de masse
             relative_position = vertex - quadruped.position
@@ -89,7 +89,7 @@ def update_quadruped(quadruped: Quadruped):
     if penetrations:
         mean_penetration = np.mean(penetrations)
         if DEBUG_CONTACT:
-            print(f"[CORRECTION] Correction de position appliquée: +{mean_penetration:.5f}")
+            print(f"[CORRECTION] Correction de position appliquée: +{mean_penetration * 0.2:.5f}")
         quadruped.position[1] += mean_penetration * 0.2
 
     # --- Moyenne et application des impulsions verticales ---
@@ -112,8 +112,8 @@ def update_quadruped(quadruped: Quadruped):
 
     # --- Ajout : traction latérale basée sur t‑1 ---
     traction_imp, traction_ang = [], []
-    for previous_vertex, current_vertex in zip(prev_vertices, quadruped.rotated_vertices):
-        # le point est (et était) au sol ?
+    for previous_vertex, current_vertex in zip(prev_vertices, current_vertices):
+        # le point est (et était) au sol ?
         previous_on_ground = previous_vertex[1] <= contact_threshold
         current_on_ground = current_vertex[1] <= contact_threshold
         if not (previous_on_ground and current_on_ground):
@@ -122,10 +122,10 @@ def update_quadruped(quadruped: Quadruped):
         current_vertex[1], previous_vertex[1] = 0, 0 # Normalisation de la Hauteur, on considère que les deux points restent au sol pendant la cinématique
         delta = current_vertex - previous_vertex
         delta[1] = 0.0  # composante tangentielle
-        # --- DEAD ZONE : on ignore les déplacements < SLIP_THRESHOLD*DT ---
+        # --- DEAD ZONE : on ignore les déplacements < SLIP_THRESHOLD*DT ---
         if np.linalg.norm(delta) < SLIP_THRESHOLD * DT:
             continue
-        # vitesse “imposée” au sol → impulsion opposée sur le corps
+        # vitesse "imposée" au sol → impulsion opposée sur le corps
         J_needed = -mass * delta / DT  # N·s
         J_cap = STATIC_FRICTION_CAP * DT  # adhérence max
         J = np.clip(J_needed, -J_cap, J_cap)
@@ -142,12 +142,11 @@ def update_quadruped(quadruped: Quadruped):
             print(f"[TRACTION] Moyenne traction linéaire: {np.mean(traction_imp, axis=0)}, angulaire: {np.mean(traction_ang, axis=0)}")
         quadruped.velocity += limit_vector(np.mean(traction_imp, axis=0), MAX_AVERAGE_IMPULSE)
         quadruped.angular_velocity += limit_vector(np.mean(traction_ang, axis=0), MAX_AVERAGE_IMPULSE)
-    
+
+    # Sauvegarder les vertices actuels pour la prochaine itération
+    quadruped.prev_vertices = current_vertices.copy()
 
     if DEBUG_CONTACT:
         print(f"[VELOCITY] Velocity: {quadruped.velocity}, Angular Velocity: {quadruped.angular_velocity}")
         print(f"[POSITION] Position: {quadruped.position}, Rotation: {quadruped.rotation}")
         print("------------------------------------------------------------------------------------------------\n")
-
-    # -----Mémoriser l’état pour la frame suivante --------
-    quadruped.prev_vertices = quadruped.rotated_vertices.copy()
