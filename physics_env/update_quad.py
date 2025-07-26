@@ -2,9 +2,8 @@
 import numpy as np
 
 
-from .config import DT, GRAVITY, SLIP_THRESHOLD, FRICTION, CONTACT_THRESHOLD_BASE, CONTACT_THRESHOLD_MULTIPLIER
+from .config import DT, GRAVITY, SLIP_THRESHOLD, CONTACT_THRESHOLD_BASE, CONTACT_THRESHOLD_MULTIPLIER
 from .config import MAX_VELOCITY, MAX_ANGULAR_VELOCITY, MAX_IMPULSE, MAX_AVERAGE_IMPULSE, DEBUG_CONTACT, STATIC_FRICTION_CAP
-from .config import G_STAB, CONTACT_VERTICES_MAX
 from .quadruped import Quadruped
 from .helpers import limit_vector
 
@@ -65,8 +64,6 @@ def update_quadruped(quadruped: Quadruped):
             
             # Enregistrer la pénétration
             penetrations.append(-vertex[1])
-            if DEBUG_CONTACT:
-                print(f"[CONTACT] Pénétration vertex: {-vertex[1]:.5f}  pos: {vertex}")
             # Si le sommet descend, calculer l'impulsion nécessaire
             if vertex_velocity[1] < 0:
                 # Impulsion nécessaire pour annuler la vitesse verticale
@@ -79,11 +76,7 @@ def update_quadruped(quadruped: Quadruped):
                 
                 if denom != 0:
                     scalar_impulse = -relative_velocity / denom
-                    
-                    # Limiter l'impulsion pour éviter les rebonds excessifs
-                    if DEBUG_CONTACT:
-                        print(f"[NORMAL] v_rel={relative_velocity:.3f}  "
-                              f"jn_raw={scalar_impulse:.3f}")
+
                     scalar_impulse = np.clip(scalar_impulse, -MAX_IMPULSE, MAX_IMPULSE)
                     
                     # Stocker les impulsions pour application ultérieure
@@ -91,12 +84,13 @@ def update_quadruped(quadruped: Quadruped):
                     collision_angular_impulses_normal.append(
                         np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0)
                     )
+    
     # Appliquer la correction de position une seule fois
     if penetrations:
         max_penetration = max(penetrations)
         if DEBUG_CONTACT:
-            print(f"[CORRECTION] Correction de position appliquée: +{max_penetration:.5f}")
-        quadruped.position[1] += max_penetration
+            print(f"[CORRECTION] Correction de position appliquée: +{max_penetration * 0.5:.5f}")
+        quadruped.position[1] += max_penetration * 0.5
 
     # --- Moyenne et application des impulsions verticales ---
     if collision_impulses_normal:
@@ -142,14 +136,18 @@ def update_quadruped(quadruped: Quadruped):
         traction_ang.append(
             np.divide(np.cross(r, J), I, out=np.zeros(3), where=I!=0)
         )
-        if DEBUG_CONTACT:
-            print(f"[TRACTION] delta: {delta}, J_needed: {J_needed}, J: {J}")
 
     if traction_imp:
         if DEBUG_CONTACT:
             print(f"[TRACTION] Moyenne traction linéaire: {np.mean(traction_imp, axis=0)}, angulaire: {np.mean(traction_ang, axis=0)}")
         quadruped.velocity += limit_vector(np.mean(traction_imp, axis=0), MAX_AVERAGE_IMPULSE)
         quadruped.angular_velocity += limit_vector(np.mean(traction_ang, axis=0), MAX_AVERAGE_IMPULSE)
+    
+
+    if DEBUG_CONTACT:
+        print(f"[VELOCITY] Velocity: {quadruped.velocity}, Angular Velocity: {quadruped.angular_velocity}")
+        print(f"[POSITION] Position: {quadruped.position}, Rotation: {quadruped.rotation}")
+        print("------------------------------------------------------------------------------------------------\n")
 
     # -----Mémoriser l’état pour la frame suivante --------
     quadruped.prev_vertices = quadruped.rotated_vertices.copy()
