@@ -22,7 +22,7 @@ class Quadruped:
         self.initial_angular_velocity = np.array([0.0, 0.0, 0.0]).copy()
         self.initial_rotation = rotation.copy()
         self.initial_vertices = vertices.copy()
-        self.initial_vertices_dict = copy.deepcopy(vertices_dict)
+        self.initial_vertices_dict = vertices_dict.copy()
         self.color = color
 
         self.position = position # position en x, y, z du centre du quadruped
@@ -30,7 +30,7 @@ class Quadruped:
         self.rotation = rotation # rotation en radians
         self.angular_velocity = np.array([0.0, 0.0, 0.0])
         self.vertices = vertices.copy()
-        self.vertices_dict = copy.deepcopy(vertices_dict)
+        self.vertices_dict = vertices_dict.copy()
         
         # Get shoulder and elbow positions from vertices_dict if available
         self.shoulder_positions = vertices_dict.get('shoulder_positions', []) if vertices_dict else []

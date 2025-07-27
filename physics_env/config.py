@@ -52,15 +52,15 @@ DEBUG_CONTACT = False
 DEBUG_RL_TRAIN = False
 DEBUG_RL_MODEL = False
 DEBUG_RL_AGENT = False
-DEBUG_RL_VIZ = False
+DEBUG_RL_VIZ   = False
 
 # ----- RL Training Config --------------------------------------
-EPISODES = 1_000
+EPISODES  = 100
 MAX_STEPS = 500
 
 START_EPS = 0.75
 EPS_DECAY = 0.998
-EPS_MIN = 0.01
+EPS_MIN   = 0.01
 
 PLOT_INTERVAL = 30
 SAVE_INTERVAL = 30

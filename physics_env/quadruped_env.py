@@ -343,7 +343,7 @@ if __name__ == "__main__":
     profiler = cProfile.Profile()
     profiler.enable()
 
-    game = QuadrupedEnv(rendering=False)
+    game = QuadrupedEnv(rendering=True)
     game.run()
 
     profiler.disable()
