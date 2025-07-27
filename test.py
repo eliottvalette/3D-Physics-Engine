@@ -34,6 +34,13 @@ def test_agent(agent: QuadrupedAgent, env: QuadrupedEnv):
         # Get keyboard state for camera controls
         keys = pygame.key.get_pressed()
         camera_actions = env.handle_camera_controls(keys)
+
+        if keys[K_SPACE]:
+            env.quadruped.reset()
+            env.circles_passed.clear()
+            env.prev_potential = None
+            env.consecutive_steps_below_critical_height = 0
+            env.prev_radius = None
         
         # Récupération de l'état actuel
         state = env.get_state()

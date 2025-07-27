@@ -56,7 +56,7 @@ class Quadruped:
         # --- masse & inertie réalistes --------------------------
         self.mass, self.I_body = self._compute_mass_inertia()
         self.rotated_vertices = self.get_vertices()
-        self.motor_delay =  1
+        self.motor_delay =  2
 
         # Danger zones
         self.too_high = False

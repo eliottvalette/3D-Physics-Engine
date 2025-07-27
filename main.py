@@ -2,12 +2,8 @@
 from train import main_training_loop
 from physics_env.config import set_seed, EPISODES, GAMMA, ALPHA, STATE_SIZE, ACTION_SIZE, RENDERING, PROFILING
 from agent import QuadrupedAgent
-from physics_env.quadruped_env import QuadrupedEnv
 import torch
-from collections import deque
-import gc
 import cProfile
-import pstats
 
 
 # Définir la graine pour la reproductibilité

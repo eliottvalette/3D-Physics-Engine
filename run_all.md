@@ -28,5 +28,12 @@ python files_to_send.py
 
 # Visualize the training profile
 ```bash
+clear
 snakeviz profiling/training_profile.prof
+```
+
+# Visualize the physics engine profile
+```bash
+clear
+snakeviz profiling/physics_engine_only.prof
 ```

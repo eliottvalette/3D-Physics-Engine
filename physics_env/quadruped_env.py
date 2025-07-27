@@ -341,5 +341,14 @@ class QuadrupedEnv:
                 pygame.draw.lines(self.screen, color, True, pts, 1)
 
 if __name__ == "__main__":
-    game = QuadrupedEnv()
+    import cProfile
+
+    profiler = cProfile.Profile()
+    profiler.enable()
+
+
+    game = QuadrupedEnv(rendering=True)
     game.run()
+
+    profiler.disable()
+    profiler.dump_stats("profiling/physics_engine_only.prof")
