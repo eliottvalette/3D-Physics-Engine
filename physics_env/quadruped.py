@@ -56,7 +56,13 @@ class Quadruped:
         # --- masse & inertie réalistes --------------------------
         self.mass, self.I_body = self._compute_mass_inertia()
         self.rotated_vertices = self.get_vertices()
-        self.motor_delay =  10
+        self.motor_delay =  1
+
+        # Danger zones
+        self.too_high = False
+        self.too_low = False
+        self.steps_since_too_high = 0
+        self.steps_since_too_low = 0
     
     def reset_random(self):
         self.position = self.initial_position.copy()
@@ -263,8 +269,14 @@ class Quadruped:
         cap_shoulder = np.array(cap_shoulder).flatten()
         cap_elbow = np.array(cap_elbow).flatten()
 
+        # Est-ce que le quadruped est dans les danger zones ?
+        too_high = np.array([self.too_high], dtype=np.float32)
+        too_low = np.array([self.too_low], dtype=np.float32)
+        steps_since_too_high = np.array([self.steps_since_too_high / 50], dtype=np.float32)
+        steps_since_too_low = np.array([self.steps_since_too_low / 20], dtype=np.float32)
+
         # 5. état final
-        state = np.concatenate([base, body_limits, np.array(min_max_y, dtype=np.float32), cap_shoulder, cap_elbow])
+        state = np.concatenate([base, body_limits, np.array(min_max_y, dtype=np.float32), cap_shoulder, cap_elbow, too_high, too_low, steps_since_too_high, steps_since_too_low])
         return state.tolist()
 
     def draw(self, screen: pygame.Surface, camera: Camera3D):

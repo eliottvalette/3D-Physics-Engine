@@ -199,14 +199,14 @@ class QuadrupedEnv:
         next_state = self.get_state()
         # ---- REWARD ---
         # ----------  a) distance à l'origine (suivant Z uniquement) --------------
-        distance_to_origin = abs(self.quadruped.position[2])
+        distance_to_origin_x = abs(self.quadruped.position[2])
         
-        if self.prev_radius is not None and self.prev_radius < distance_to_origin :
-            distance_reward = 0.2 + (distance_to_origin - self.prev_radius) * 20
+        if self.prev_radius is not None and self.prev_radius < distance_to_origin_x :
+            distance_reward = 0.2 + (distance_to_origin_x - self.prev_radius) * 20
         else :
             distance_reward = - 0.2
 
-        self.prev_radius = distance_to_origin
+        self.prev_radius = distance_to_origin_x
         # ----------  b)  Pénalité d'inclinaison du corps (pénalité brute) --------------
         pitch, yaw, roll = self.quadruped.rotation
         pitch = ((pitch + np.pi) % (2 * np.pi)) - np.pi
@@ -220,7 +220,7 @@ class QuadrupedEnv:
         # ----------  c)  Récompense principale --------------
         sparse_reward = 0.0
         for r in self.circle_radii:
-            if distance_to_origin >= r and r not in self.circles_passed:
+            if distance_to_origin_x >= r and r not in self.circles_passed:
                 sparse_reward += 2.0
                 self.circles_passed.add(r)
 
@@ -228,11 +228,11 @@ class QuadrupedEnv:
 
         below_critical_height = self.quadruped.position[1] < 4.5
         if below_critical_height:
-            sparse_reward = -1.0
+            sparse_reward = -0.5
 
         above_critical_height = self.quadruped.position[1] > 5.5
         if above_critical_height:
-            sparse_reward = -1.0
+            sparse_reward = -0.5
 
         if below_critical_height:
             self.consecutive_steps_below_critical_height += 1
@@ -246,6 +246,12 @@ class QuadrupedEnv:
             done = True
         else:
             done = False 
+
+        # Inform the quadruped that it is in danger
+        self.quadruped.too_high = above_critical_height
+        self.quadruped.steps_since_too_high = self.consecutive_steps_above_critical_height
+        self.quadruped.too_low = below_critical_height
+        self.quadruped.steps_since_too_low = self.consecutive_steps_below_critical_height
 
         # ----------  d)  Somme finale -------------------------
         reward = (distance_reward
