@@ -5,7 +5,7 @@ import numpy as np
 from .config import DT, GRAVITY, SLIP_THRESHOLD, CONTACT_THRESHOLD_BASE, CONTACT_THRESHOLD_MULTIPLIER
 from .config import MAX_VELOCITY, MAX_ANGULAR_VELOCITY, MAX_IMPULSE, MAX_AVERAGE_IMPULSE, DEBUG_CONTACT, STATIC_FRICTION_CAP
 from .quadruped import Quadruped
-from .helpers import limit_vector
+from .helpers import limit_vector, batch_cross
 
 
 def update_quadruped(quadruped: Quadruped):
@@ -55,35 +55,64 @@ def update_quadruped(quadruped: Quadruped):
     collision_impulses_tangent = []
     collision_angular_impulses_tangent = []
     
-    for vertex in current_vertices:
-        if vertex[1] < 0:
-            # Position du sommet par rapport au centre de masse
-            relative_position = vertex - quadruped.position
-            # Vitesse du sommet (translation + rotation)
-            vertex_velocity = quadruped.velocity + np.cross(quadruped.angular_velocity, relative_position)
+    # Filtrer les vertices en collision avec le sol
+    collision_vertices = [vertex for vertex in current_vertices if vertex[1] < 0]
+    
+    if collision_vertices:
+        # Préparer les données pour calculs vectorisés
+        collision_vertices = np.array(collision_vertices)
+        relative_positions = collision_vertices - quadruped.position
+        
+        # Calculer les vitesses des vertices (translation + rotation)
+        # Utiliser batch_cross pour optimiser
+        angular_contributions = batch_cross(
+            np.full((len(collision_vertices), 3), quadruped.angular_velocity),
+            relative_positions
+        )
+        vertex_velocities = quadruped.velocity + angular_contributions
+        
+        # Filtrer les vertices qui descendent
+        descending_mask = vertex_velocities[:, 1] < 0
+        if np.any(descending_mask):
+            descending_vertices = collision_vertices[descending_mask]
+            descending_relative_positions = relative_positions[descending_mask]
+            descending_velocities = vertex_velocities[descending_mask]
             
-            # Enregistrer la pénétration
-            penetrations.append(-vertex[1])
-            # Si le sommet descend, calculer l'impulsion nécessaire
-            if vertex_velocity[1] < 0:
-                # Impulsion nécessaire pour annuler la vitesse verticale
-                normal = np.array([0, 1, 0])  # normale du sol
-                relative_velocity = np.dot(vertex_velocity, normal)
+            # Enregistrer les pénétrations
+            penetrations.extend(-descending_vertices[:, 1])
+            
+            # Normal du sol pour tous les vertices
+            normals = np.full((len(descending_vertices), 3), [0, 1, 0])
+            
+            # Calculer les vitesses relatives
+            relative_velocities = np.sum(descending_velocities * normals, axis=1)
+            
+            # Calculer r_cross_n pour tous les vertices
+            r_cross_n = batch_cross(descending_relative_positions, normals)
+            
+            # Calculer les dénominateurs pour tous les vertices
+            r_cross_n_div_I = np.divide(r_cross_n, I, out=np.zeros_like(r_cross_n), where=I!=0)
+            r_cross_n_div_I_cross_r = batch_cross(r_cross_n_div_I, descending_relative_positions)
+            dot_terms = np.sum(normals * r_cross_n_div_I_cross_r, axis=1)
+            denoms = (1/mass) + dot_terms
+            
+            # Calculer les impulsions scalaires
+            valid_denoms = denoms != 0
+            if np.any(valid_denoms):
+                scalar_impulses = -relative_velocities[valid_denoms] / denoms[valid_denoms]
+                scalar_impulses = np.clip(scalar_impulses, -MAX_IMPULSE, MAX_IMPULSE)
                 
-                # Calcul de l'impulsion scalaire
-                r_cross_n = np.cross(relative_position, normal)
-                denom = (1/mass) + np.dot(normal, np.cross(np.divide(r_cross_n, I, out=np.zeros_like(r_cross_n), where=I!=0), relative_position))
+                # Calculer les impulsions normales
+                normal_impulses = (scalar_impulses[:, np.newaxis] * normals[valid_denoms]) / mass
+                collision_impulses_normal.extend(normal_impulses)
                 
-                if denom != 0:
-                    scalar_impulse = -relative_velocity / denom
-
-                    scalar_impulse = np.clip(scalar_impulse, -MAX_IMPULSE, MAX_IMPULSE)
-                    
-                    # Stocker les impulsions pour application ultérieure
-                    collision_impulses_normal.append((scalar_impulse * normal) / mass)
-                    collision_angular_impulses_normal.append(
-                        np.divide(np.cross(relative_position, scalar_impulse * normal), I, out=np.zeros(3), where=I!=0)
-                    )
+                # Calculer les impulsions angulaires
+                angular_impulses = np.divide(
+                    batch_cross(descending_relative_positions[valid_denoms], 
+                               scalar_impulses[:, np.newaxis] * normals[valid_denoms]),
+                    I, out=np.zeros((len(scalar_impulses), 3)), where=I!=0
+                )
+                collision_angular_impulses_normal.extend(angular_impulses)
     
     # Appliquer la correction de position une seule fois
     if penetrations:
@@ -112,30 +141,52 @@ def update_quadruped(quadruped: Quadruped):
 
     # --- Ajout : traction latérale basée sur t‑1 ---
     traction_imp, traction_ang = [], []
-    for previous_vertex, current_vertex in zip(prev_vertices, current_vertices):
-        # le point est (et était) au sol ?
-        previous_on_ground = previous_vertex[1] <= contact_threshold
-        current_on_ground = current_vertex[1] <= contact_threshold
-        if not (previous_on_ground and current_on_ground):
-            continue
-        # déplacement réel du sommet (inclut la cinématique des membres)
-        current_vertex[1], previous_vertex[1] = 0, 0 # Normalisation de la Hauteur, on considère que les deux points restent au sol pendant la cinématique
-        delta = current_vertex - previous_vertex
-        delta[1] = 0.0  # composante tangentielle
-        # --- DEAD ZONE : on ignore les déplacements < SLIP_THRESHOLD*DT ---
-        if np.linalg.norm(delta) < SLIP_THRESHOLD * DT:
-            continue
-        # vitesse "imposée" au sol → impulsion opposée sur le corps
-        J_needed = -mass * delta / DT  # N·s
-        J_cap = STATIC_FRICTION_CAP * DT  # adhérence max
-        J = np.clip(J_needed, -J_cap, J_cap)
-        # linéaire
-        traction_imp.append(J / mass)
-        # angulaire
-        r = current_vertex - quadruped.position
-        traction_ang.append(
-            np.divide(np.cross(r, J), I, out=np.zeros(3), where=I!=0)
-        )
+    
+    # Convertir en arrays pour calculs vectorisés
+    prev_vertices_array = np.array(prev_vertices)
+    current_vertices_array = np.array(current_vertices)
+    
+    # Identifier les points au sol
+    previous_on_ground = prev_vertices_array[:, 1] <= contact_threshold
+    current_on_ground = current_vertices_array[:, 1] <= contact_threshold
+    both_on_ground = previous_on_ground & current_on_ground
+    
+    if np.any(both_on_ground):
+        # Extraire les vertices concernés
+        ground_prev = prev_vertices_array[both_on_ground].copy()
+        ground_current = current_vertices_array[both_on_ground].copy()
+        
+        # Normaliser la hauteur (considérer que les points restent au sol)
+        ground_prev[:, 1] = 0
+        ground_current[:, 1] = 0
+        
+        # Calculer les déplacements
+        deltas = ground_current - ground_prev
+        deltas[:, 1] = 0.0  # composante tangentielle
+        
+        # Filtrer par dead zone
+        delta_norms = np.linalg.norm(deltas, axis=1)
+        significant_movement = delta_norms >= SLIP_THRESHOLD * DT
+        
+        if np.any(significant_movement):
+            significant_deltas = deltas[significant_movement]
+            significant_current = ground_current[significant_movement]
+            
+            # Calculer les impulsions nécessaires
+            J_needed = -mass * significant_deltas / DT  # N·s
+            J_cap = STATIC_FRICTION_CAP * DT  # adhérence max
+            J_clipped = np.clip(J_needed, -J_cap, J_cap)
+            
+            # Impulsions linéaires
+            traction_imp.extend(J_clipped / mass)
+            
+            # Impulsions angulaires (utiliser batch_cross)
+            r_vectors = significant_current - quadruped.position
+            angular_impulses = np.divide(
+                batch_cross(r_vectors, J_clipped),
+                I, out=np.zeros_like(r_vectors), where=I!=0
+            )
+            traction_ang.extend(angular_impulses)
 
     if traction_imp:
         if DEBUG_CONTACT:

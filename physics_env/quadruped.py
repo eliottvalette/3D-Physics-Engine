@@ -231,8 +231,8 @@ class Quadruped:
             self.elbow_velocities
         ])
 
-        # 1. Update les sommets
-        vertices = self.get_vertices() 
+        # 1. Utiliser les vertices déjà calculés
+        vertices = self.rotated_vertices 
         
         # 2. Les min/max X Y Z du Body
         body_vertices = vertices[0:8]
@@ -281,8 +281,8 @@ class Quadruped:
 
     def draw(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le quadruped 3D avec projection et profondeur (arêtes seulement)"""        
-        # S'assurer que les vertices sont à jour
-        vertices = self.get_vertices()
+        # Utiliser les vertices déjà calculés
+        vertices = self.rotated_vertices
         
         # Projeter tous les sommets
         projected_vertices = []
@@ -340,8 +340,8 @@ class Quadruped:
     
     def draw_premium(self, screen: pygame.Surface, camera: Camera3D):
         """Dessine le quadruped 3D avec faces pleines et dégradé de gris basé sur la profondeur"""
-        # S'assurer que les vertices sont à jour
-        vertices = self.get_vertices()
+        # Utiliser les vertices déjà calculés
+        vertices = self.rotated_vertices
         
         # Projeter tous les sommets
         projected_vertices = []
