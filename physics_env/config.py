@@ -55,10 +55,10 @@ DEBUG_RL_AGENT = False
 DEBUG_RL_VIZ   = False
 
 # ----- RL Training Config --------------------------------------
-EPISODES  = 100
+EPISODES  = 2_000
 MAX_STEPS = 500
 
-START_EPS = 0.75
+START_EPS = 0.50
 EPS_DECAY = 0.998
 EPS_MIN   = 0.01
 

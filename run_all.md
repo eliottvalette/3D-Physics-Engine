@@ -20,6 +20,12 @@ clear
 python main.py
 ```
 
+# Test the trained model
+```bash
+clear
+python test.py
+```
+
 # Generate the code to send to the chat
 ```bash
 clear
