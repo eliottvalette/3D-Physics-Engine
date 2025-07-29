@@ -92,7 +92,6 @@ class QuadrupedEnv:
             
             _, reward, done, step_time = self.step(shoulder_actions, elbow_actions, camera_actions, reset_actions)
 
-            update_quadruped(self.quadruped)
             if self.rendering:
                 self.render(reward, done, step_time)
             self.clock.tick(FPS)
