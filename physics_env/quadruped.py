@@ -210,7 +210,7 @@ class Quadruped:
         self._needs_update = True
     
     def adjust_shoulder_angle(self, leg_index, delta_angle):
-        if delta_angle > 0:
+        if delta_angle > 0 :
             self.shoulder_velocities[leg_index] = np.clip(self.shoulder_velocities[leg_index] + (delta_angle / self.motor_delay), 0, delta_angle)
         elif delta_angle < 0:
             self.shoulder_velocities[leg_index] = np.clip(self.shoulder_velocities[leg_index] + (delta_angle / self.motor_delay), delta_angle, 0)
@@ -220,6 +220,9 @@ class Quadruped:
         new_angle = self.shoulder_angles[leg_index] + self.shoulder_velocities[leg_index]
         capped_angle = max(-math.pi/2, min(math.pi/2, new_angle))
         self.shoulder_angles[leg_index] = capped_angle
+
+        if capped_angle in [math.pi/2, -math.pi/2]:
+            self.shoulder_velocities[leg_index] = 0
         self._needs_update = True
     
     def adjust_elbow_angle(self, leg_index, delta_angle):
