@@ -69,6 +69,7 @@ class QuadrupedEnv:
         self.circles_passed = set()         # stocke les rayons déjà comptés
         self.prev_radius   = None     # distance horizontale au pas t‑1
         self.rot_penalty_coef = 0.5
+        self.gait_reward_coef = 0.1
         self.consecutive_steps_below_critical_height = 0
         self.consecutive_steps_above_critical_height = 0
         
@@ -220,6 +221,11 @@ class QuadrupedEnv:
                 sparse_reward += 2.0
                 self.circles_passed.add(r)
 
+        # ----------  d)  Mouvement des articulations ----------------
+        shoulder_activity = np.mean(np.abs(self.quadruped.shoulder_velocities))
+        elbow_activity = np.mean(np.abs(self.quadruped.elbow_velocities))
+        gait_reward = self.gait_reward_coef * (shoulder_activity + elbow_activity)
+
         # ----------  Termination checker --------------
 
         below_critical_height = self.quadruped.position[1] < 4.5
@@ -252,7 +258,8 @@ class QuadrupedEnv:
         # ----------  d)  Somme finale -------------------------
         reward = (distance_reward
                   + sparse_reward
-                  + tilt_penalty)
+                  + tilt_penalty
+                  + gait_reward)
         # -----------------------------------------------------
         end_step_time = time.time()
         step_time = end_step_time - start_step_time
