@@ -210,10 +210,11 @@ class Quadruped:
         self._needs_update = True
     
     def adjust_shoulder_angle(self, leg_index, delta_angle):
+        random_noise = np.random.randn() * 0.01 - 0.005
         if delta_angle > 0 :
-            self.shoulder_velocities[leg_index] = np.clip(self.shoulder_velocities[leg_index] + (delta_angle / self.motor_delay), 0, delta_angle)
+            self.shoulder_velocities[leg_index] = np.clip(self.shoulder_velocities[leg_index] + (delta_angle / self.motor_delay) + random_noise, 0, delta_angle)
         elif delta_angle < 0:
-            self.shoulder_velocities[leg_index] = np.clip(self.shoulder_velocities[leg_index] + (delta_angle / self.motor_delay), delta_angle, 0)
+            self.shoulder_velocities[leg_index] = np.clip(self.shoulder_velocities[leg_index] + (delta_angle / self.motor_delay) + random_noise, delta_angle, 0)
         else:
             self.shoulder_velocities[leg_index] = 0
 
@@ -285,9 +286,9 @@ class Quadruped:
         cap_shoulder = []
         cap_elbow = []
         for angle in self.shoulder_angles:
-            cap_shoulder.append([1 if angle >= math.pi/2 else 0, 1 if angle <= -math.pi/2 else 0])
+            cap_shoulder.append([1 if angle >= math.pi/2 * 0.9 else 0, 1 if angle <= -math.pi/2 * 0.9 else 0])
         for angle in self.elbow_angles:
-            cap_elbow.append([1 if angle >= math.pi/2 else 0, 1 if angle <= -math.pi/2 else 0])
+            cap_elbow.append([1 if angle >= math.pi/2 * 0.9 else 0, 1 if angle <= -math.pi/2 * 0.9 else 0])
         cap_shoulder = np.array(cap_shoulder).flatten()
         cap_elbow = np.array(cap_elbow).flatten()
 

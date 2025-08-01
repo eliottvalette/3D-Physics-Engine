@@ -42,7 +42,7 @@ class QuadrupedEnv:
         "P - Afficher les sommets",
         "Échap - Quitter"
     ]
-    CIRCLE_RADII = [0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    CIRCLE_RADII = [0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20]
 
     def __init__(self, rendering=True):
         """Initialize the game, Pygame, and world objects."""
@@ -69,7 +69,7 @@ class QuadrupedEnv:
         self.circles_passed = set()         # stocke les rayons déjà comptés
         self.prev_radius   = None     # distance horizontale au pas t‑1
         self.rot_penalty_coef = 0.5
-        self.gait_reward_coef = 0.1
+        self.gait_reward_coef = 0.5
         self.consecutive_steps_below_critical_height = 0
         self.consecutive_steps_above_critical_height = 0
         
@@ -199,10 +199,10 @@ class QuadrupedEnv:
         distance_to_origin_x = abs(self.quadruped.position[2])
         
         if self.prev_radius is not None and self.prev_radius < distance_to_origin_x :
-            distance_reward = 0.2 + (distance_to_origin_x - self.prev_radius) * 20
+            distance_reward = 0.2 + np.sqrt((distance_to_origin_x - self.prev_radius))* 4
         else :
             distance_reward = - 0.2
-
+        
         self.prev_radius = distance_to_origin_x
         # ----------  b)  Pénalité d'inclinaison du corps (pénalité brute) --------------
         pitch, yaw, roll = self.quadruped.rotation
@@ -222,9 +222,24 @@ class QuadrupedEnv:
                 self.circles_passed.add(r)
 
         # ----------  d)  Mouvement des articulations ----------------
-        shoulder_activity = np.mean(np.abs(self.quadruped.shoulder_velocities))
-        elbow_activity = np.mean(np.abs(self.quadruped.elbow_velocities))
-        gait_reward = self.gait_reward_coef * (shoulder_activity + elbow_activity)
+        immobile_penalty = 0.0
+        for i in range(4):
+            shoulder_activity = abs(self.quadruped.shoulder_velocities[i])
+            elbow_activity = abs(self.quadruped.elbow_velocities[i])
+            if shoulder_activity == 0 :
+                immobile_penalty += 0.25
+            if elbow_activity == 0 :
+                immobile_penalty += 0.25
+
+        # ----------  e)  Pénalité des angles extremes ----------------
+        angle_penalty = 0.0
+        for i in range(4):
+            if abs(self.quadruped.shoulder_angles[i]) > np.pi/2 * 0.9:
+                angle_penalty += 0.25
+            if abs(self.quadruped.elbow_angles[i]) > np.pi/2 * 0.9:
+                angle_penalty += 0.25
+
+        gait_reward = - self.gait_reward_coef * (immobile_penalty + angle_penalty)
 
         # ----------  Termination checker --------------
 
