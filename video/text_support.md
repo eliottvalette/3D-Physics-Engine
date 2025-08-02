@@ -12,25 +12,102 @@
 
 ## 1 · Fondamentaux : le sol
 
-Pour simuler un sol, il suffit de deux éléments :
-- Une frontière séparant la matière de l'extérieur
+Pour simuler un sol, seules deux éléments suffisent :
+- Une frontière délimitant la matière et l'extérieur
 - Une normale définissant l'orientation de la surface
 
-Pour un sol plat horizontal, cela se traduit par :
+Pour un sol plat horizontal, nous utilisons les équations suivantes :
 
 $$
-\boxed{\,y \geqslant 0\,} \qquad \boxed{\,\mathbf{n} = (0,\,1,\,0)\,}
+\boxed{\;y\;\geqslant\;0\;} \quad \boxed{\;\mathbf{n}\;=\;(0,\;1,\;0)\;} 
 $$
 
-*Ici, **$y$** est la coordonnée verticale d'un point dans l'espace, et **$\mathbf{n}$** est le vecteur normal au plan.*
+*Ici **$y$** représente la coordonnée verticale d'un point dans l'espace, et **$\mathbf{n}$** le vecteur normal au plan*
 
-Tout point dont la composante **$y$** devient négative est **en pénétration**. On note $\delta$ cette valeur :
+Tout point dont la composante **$y$** devient négative est **en pénétration**. On note $\delta$ cette valeur de pénétration :
 
 $$
-\delta = \max(0,\,-p_y)
+\delta = \max\bigl(0,\,-p_y\bigr)
 $$
 
-### Implémentation en code :
+### Implémentation en code :
+
+```python
+# ground.py
+class Ground:
+    def __init__(self, height_y=0):
+        self.height_y = height_y
+        self.normal = np.array([0, 1, 0])
+```
+
+---
+
+## 2 · Premier contact : faire tomber un cube
+
+### 2.1 · Intégration d'Euler semi-explicite
+
+Considérons un cube unitaire (chaque côté mesure une unité). On lui attribue une position $(x,y,z)$ située au centre de ce cube. En appliquant toutes les combinaisons $\pm0.5$ dans les directions $x$, $y$ et $z$, on obtient la position de chacun des huit sommets du cube.
+
+Pour la physique, à chaque pas de temps $\Delta t$ dans la simulation :
+
+$$
+\begin{aligned}
+\mathbf{g} &= (0, -9.81, 0) \quad \text{(accélération gravitationnelle)}\\[2pt]
+\mathbf{v}_{new} &= \mathbf{v}_{old} + \mathbf{g}\,\Delta t,\\[2pt]
+\mathbf{x}_{new} &= \mathbf{x}_{old} + \mathbf{v}_{new}\,\Delta t.
+\end{aligned}
+$$
+
+**Implémentation en code :**
+
+```python
+class Cube:
+    def __init__(self, initial_position=[0, 4, 0], initial_velocity=[0, 0, 0]):
+        self.position = np.array(initial_position)
+        self.velocity = np.array(initial_velocity)
+        self.side_length = 1.0
+```
+
+```python
+# À chaque pas de simulation
+def update(self, dt):
+    self.velocity += GRAVITY * dt
+    self.position += self.velocity * dt
+```
+
+### 2.2 · Correction de pénétration
+
+Sans collision, notre cube tomberait indéfiniment. Ajoutons une détection et correction de collision avec le sol :
+
+$$
+\text{cube}_{\text{min}_y} = \text{cube}_y - 0.5 \\[10pt]
+\boxed{
+\delta = \max(0, -\text{cube}_{\text{min}_y}) \quad \Rightarrow \quad
+\mathbf{p} \gets \mathbf{p} + \delta\,\mathbf{n}
+}
+$$
+
+Afin de créer un rebond léger, nous appliquons une perte d'énergie lors du rebond, ON ajoute donc dans le pas physique :
+$$
+\begin{aligned}
+\mathbf{\delta} = \max(0, -\text{cube}_{\text{min}_y})\\[2pt]
+\mathbf{x}_{new_y} &= \mathbf{x}_{old_y} + \mathbf{\delta} \\[2pt]
+\mathbf{v}_{new_y} &= \mathbf{v}_{old_y} \times {-0.7}
+\end{aligned}
+$$
+
+```python
+def handle_ground_collision(self):
+    # Deteminer Le point le plus bas du cube
+    cube_y = self.position[1] - 0.5 # Le cube sans rotation, la face inférieure est à y - 0.5 (en partant du centre du cube)
+    penetration = max(0, -cube_y)
+    
+    if penetration > 0:
+        # Corriger la position
+        self.position[1] += penetration
+        self.velocity[1] *= -0.7  # rebond avec perte d'énergie
+
+```
 
 ---
 
@@ -42,15 +119,16 @@ Pour un cube pouvant tourner autour de ses axes $x$, $y$ et $z$, nous étendons 
 
 $$
 \begin{aligned}
-\mathbf{v}_{t+\Delta t} &= \mathbf{v}_t + \mathbf{g}\,\Delta t,\\[2pt]
-\mathbf{x}_{t+\Delta t} &= \mathbf{x}_t + \mathbf{v}_{t+\Delta t}\,\Delta t,\\[2pt]
-\boldsymbol{\theta}_{t+\Delta t} &= \boldsymbol{\theta}_t + \boldsymbol{\omega}_t\,\Delta t.
+\mathbf{v}_{new} &= \mathbf{v}_{old} + \mathbf{g}\,\Delta t,\\[2pt]
+\mathbf{x}_{new} &= \mathbf{x}_{old} + \mathbf{v}_{new}\,\Delta t,\\[2pt]
+\boldsymbol{\theta}_{new} &= \boldsymbol{\theta}_{old} + \boldsymbol{\omega}_{old}\,\Delta t.
 \end{aligned}
 $$
 
 ### 3.2 · Collision par sommet
+Desormais, quand le cube hurte le sol, il est possible qu'il le frappe autrement qu'avec sa face inférieure parralèle ausol : en effet il peut le frapper avec un arrete ou avec un seul sommet.
 
-La correction physique s'applique maintenant sur chaque sommet individuellement :
+Ainsi, la correction physique doit maintenant s'appliquer sur chaque sommet individuellement :
 
 Pour chaque sommet $\mathbf{v}_i$ du cube :
 
@@ -59,26 +137,14 @@ $$
 \delta = \max_i(\delta_i)
 $$
 
-### 3.3 · Impulsion normale (collision verticale)
+### 3.3 · Impulsion normale Asymétrique
 
 Quand un sommet heurte le sol **en descendant**, nous calculons l'impulsion nécessaire pour annuler la vitesse relative :
 
-$$
-v_{\text{rel}} = \mathbf{v}_{\text{sommet}} \cdot \mathbf{n} \\[10pt]
-J = -\frac{v_{\text{rel}}}{\frac{1}{m} + \frac{(\mathbf{r} \times \mathbf{n}) \cdot (\mathbf{r} \times \mathbf{n})}{I_{yy}}}
-$$
+// expliquer les maths et la phyisuqe qui sera illustrée par le code qui suit
 
-Où :
-- $\mathbf{r} = \mathbf{v}_i - \mathbf{x}_{\text{cm}}$ (position relative du sommet)
-- $I_{yy}$ : moment d'inertie autour de l'axe $Y$
 
-### 3.4 · Couple et rotation
-
-Lorsqu'un **coin** du cube touche en premier, l'impulsion génère un **couple** qui modifie la rotation :
-
-$$
-\Delta\boldsymbol{\omega} = \mathbf{I}^{-1}(\mathbf{r} \times J\,\mathbf{n}).
-$$
+*Cela s'interprete dans le code de la facon suivante*
 
 ```python
 def handle_vertex_collision(self, vertex, vertex_velocity):
@@ -110,14 +176,34 @@ def handle_vertex_collision(self, vertex, vertex_velocity):
 
 ## 4 · Objets articulés : approche unifiée
 
-### 4.1 · Choix de l'architecture
+### 4.1 · Articulation des deux objets
 
-Pour simuler un objet articulé (comme un avant-bras et un biceps), deux approches s'offrent à nous :
+Pour simuler un objet articulé (comme un avant-bras et un biceps) nous allons avoir besoin d'un nouvel objet : une articulation. 
 
-1. **Approche multi-corps** : Déclarer 2 cubes + 1 jointure, traiter la physique pour chaque objet séparément
+Celle-ci reliera 2 objets, ici up-arm, low-arm (tous deux des objets de la classe Cube) et imposera un angle donné entre ces deux derniers. On assignera sur chacun de ses objets un point d'encrage (situé sur la surface de l'objet), A chaque instant de la simulation, les deux objets seront en contact sur ce point, on definiera à cet endroit la position de la jointure. 
+
+D'autre par parmi ces deux objets, un aura le role de guide, et l'autre de quidé. Lorsque l'angle de l'articulation sera modifié durant la simulation, le guide restera fixe, et le guidé subira la rotation adapté pour respecter l'angle imposé par la jointure.
+
+
+### Implémentation en code :
+```python
+class Joint:
+    def __init__(self, object_1, object_2, face_1, face_2, angle):
+        self.object_1 = object_1
+        self.object_2 = object_2
+        self.face_1 = face_1
+        self.face_2 = face_2
+        self.angle = angle  # Angle du joint en radians
+```
+
+### 4.2 · Choix de l'architecture
+
+Pour simuler les collisions sur notre bras articulé, deux approches s'offrent à nous :
+
+1. **Approche multi-corps** : Déclarer les 2 cubes + 1 jointure et traiter la physique pour chaque objet séparément
 2. **Approche unifiée** : Traiter l'ensemble articulé comme un seul objet
 
-La première approche, bien qu'intuitive, pose des problèmes de stabilité numérique. En effet, la simulation physique se faisant de manière séquentielle, l'ordre des mises à jour :
+La première approche, bien que plus intuitive, pose des problèmes de stabilité numérique. En effet, la simulation physique se faisant de manière séquentielle, l'ordre des mises à jour :
 
 $$
 \text{joint} \rightarrow \text{cube}_1 \rightarrow \text{cube}_2 \\
@@ -126,28 +212,42 @@ $$
 
 Crée une asymétrie dans l'effet de la physique entre les deux corps et perturbe gravement la fiabilité de la simulation.
 
-### 4.2 · Approche unifiée recommandée
+Ainsi nous suivrons le protocole : à chaque pas, avant toute modification physique, si un angle différent est demandé par l'articulation : 
+- On part de la positon actuelle du guide
+- On regarde l'angle demandé ar l'artiulation
+- On determine la position de l'objet guidé, relativement au guide, dans l'angle imposé par l'articulation
+- On recupère enfin l'ensemble des sommets de nos objets, et on crée un Objet unifié, et c'est sur cet objet que nous effectuerons l'actualisation physique.
 
-Nous adoptons l'approche unifiée : l'objet articulé est traité comme un ensemble cohérent, où les articulations sont des contraintes géométriques plutôt que des objets physiques séparés.
+### 4.2 · Exemple de code simple pour le bras : 
+
+// code
 
 ### 4.3 · Quadrupède : 9 éléments articulés
+Notre bras est fonctionnel mais ses cas d'usage sont très restreints, on peut passer à un objet plus complexe : Un Quadrupede
 
 Pour le quadrupède, nous déclarons 9 éléments :
 - 1 corps principal (body)
 - 4 pattes supérieures (upper legs)
 - 4 pattes inférieures (lower legs)
+
+Et pour relier tout cela
 - 8 articulations : 4 épaules + 4 coudes
+
+Pour les relations guide / guidé, on choisira logiquement
+
+Body guide 1 à1 des 4 upper legs, et chaque upper leg sera la guide d'une lower leg
 
 ### 4.4 · Protocole de mise à jour
 
 L'update suit le protocole suivant :
+le symbole → signifie : *Permet de determiner*
 
 1. **Position du corps** → positions des épaules
 2. **Angles des épaules** → positions des pattes supérieures
 3. **Positions des coudes** (extrémités des pattes supérieures)
 4. **Angles des coudes** → positions des pattes inférieures
 5. **Calcul de tous les sommets** du quadrupède
-6. **Traitement unifié** : itération sur tous les sommets pour les corrections de collision
+6. **Création / actualisation de l'objet Quadruped**
 
 ```python
 def update_quadruped_vertices(self):
