@@ -1,30 +1,32 @@
-# Construire pas à pas un mini‑moteur physique 3D en Python
+# Développement d'un moteur physique 3D en Python : de la théorie à l'implémentation
 
-> Alors que l'IA révolutionne le monde numérique, les robots incarnent cette révolution dans le monde physique. Cependant, la robotique rompt avec la promesse démocratique de l'IA : une explosion de nos capacités accessible depuis chez soi, au simple coût de votre imagination et d'un peu d'électricité.
+> Alors que l'intelligence artificielle révolutionne le monde numérique, la robotique incarne cette révolution dans le monde physique. Cependant, la robotique s'écarte de la promesse démocratique de l'IA : une explosion de nos capacités accessible depuis chez soi, au simple coût de votre imagination et d'un peu d'électricité.
 > 
 > En effet, les simulations 3D sont extrêmement coûteuses en termes de calcul, un coût nécessaire pour reproduire fidèlement la réalité physique. Le recours à la location de serveurs et de GPU devient alors indispensable, et la promesse d'accès libre s'efface.
 > 
-> Nous verrons ici comment simuler un environnement 3D avec une physique réaliste, dans lequel un robot articulé peut se mouvoir de manière autonome.
+> Nous verrons ici comment concevoir et implémenter un environnement 3D avec une physique réaliste, dans lequel un robot articulé peut se mouvoir de manière autonome.
 > 
 > *Licence : MIT, libre de réutilisation.*
 
 ---
 
-## 1 · Fondamentaux : le sol
+## 1 · Fondamentaux : modélisation du sol
 
-Pour simuler un sol, seules deux éléments suffisent :
+Pour simuler un sol, seuls deux éléments sont nécessaires :
 - Une frontière délimitant la matière et l'extérieur
 - Une normale définissant l'orientation de la surface
 
 Pour un sol plat horizontal, nous utilisons les équations suivantes :
 
 $$
-\boxed{\;y\;\geqslant\;0\;} \quad \boxed{\;\mathbf{n}\;=\;(0,\;1,\;0)\;} 
+\boxed{\;y\;\geqslant\;0\;} \quad \boxed{\;\mathbf{n}\;=\;(0,\;1,\;0)^\top\;} 
 $$
 
 *Ici **$y$** représente la coordonnée verticale d'un point dans l'espace, et **$\mathbf{n}$** le vecteur normal au plan*
 
 Tout point dont la composante **$y$** devient négative est **en pénétration**. On note $\delta$ cette valeur de pénétration :
+
+Pour un point $\mathbf{p} = (p_x, p_y, p_z)$ :
 
 $$
 \delta = \max\bigl(0,\,-p_y\bigr)
@@ -42,7 +44,7 @@ class Ground:
 
 ---
 
-## 2 · Premier contact : faire tomber un cube
+## 2 · Premier contact : simulation d'un cube en chute libre
 
 ### 2.1 · Intégration d'Euler semi-explicite
 
@@ -75,7 +77,7 @@ def update(self, dt):
     self.position += self.velocity * dt
 ```
 
-### 2.2 · Correction de pénétration
+### 2.2 · Détection et correction des collisions
 
 Sans collision, notre cube tomberait indéfiniment. Ajoutons une détection et correction de collision avec le sol :
 
@@ -87,18 +89,18 @@ $$
 }
 $$
 
-Afin de créer un rebond léger, nous appliquons une perte d'énergie lors du rebond, ON ajoute donc dans le pas physique :
+Afin de créer un rebond léger, nous appliquons une perte d'énergie lors du rebond, nous ajoutons donc dans le pas physique :
 $$
 \begin{aligned}
 \mathbf{\delta} = \max(0, -\text{cube}_{\text{min}_y})\\[2pt]
 \mathbf{x}_{new_y} &= \mathbf{x}_{old_y} + \mathbf{\delta} \\[2pt]
-\mathbf{v}_{new_y} &= \mathbf{v}_{old_y} \times {-0.7}
+\mathbf{v}_{new_y} &= -0.7 \cdot \mathbf{v}_{old_y}
 \end{aligned}
 $$
 
 ```python
 def handle_ground_collision(self):
-    # Deteminer Le point le plus bas du cube
+    # Déterminer le point le plus bas du cube
     cube_y = self.position[1] - 0.5 # Le cube sans rotation, la face inférieure est à y - 0.5 (en partant du centre du cube)
     penetration = max(0, -cube_y)
     
@@ -121,12 +123,12 @@ $$
 \begin{aligned}
 \mathbf{v}_{new} &= \mathbf{v}_{old} + \mathbf{g}\,\Delta t,\\[2pt]
 \mathbf{x}_{new} &= \mathbf{x}_{old} + \mathbf{v}_{new}\,\Delta t,\\[2pt]
-\boldsymbol{\theta}_{new} &= \boldsymbol{\theta}_{old} + \boldsymbol{\omega}_{old}\,\Delta t.
+\boldsymbol{\theta}_{new} &= \boldsymbol{\theta}_{old} + \boldsymbol{\omega}_{new}\,\Delta t.
 \end{aligned}
 $$
 
-### 3.2 · Collision par sommet
-Desormais, quand le cube hurte le sol, il est possible qu'il le frappe autrement qu'avec sa face inférieure parralèle ausol : en effet il peut le frapper avec un arrete ou avec un seul sommet.
+### 3.2 · Collision par sommets
+Désormais, quand le cube heurte le sol, il est possible qu'il le frappe autrement qu'avec sa face inférieure parallèle au sol : en effet il peut le frapper avec une arête ou avec un seul sommet.
 
 Ainsi, la correction physique doit maintenant s'appliquer sur chaque sommet individuellement :
 
@@ -137,14 +139,14 @@ $$
 \delta = \max_i(\delta_i)
 $$
 
-### 3.3 · Impulsion normale Asymétrique
+### 3.3 · Impulsion normale asymétrique
 
 Quand un sommet heurte le sol **en descendant**, nous calculons l'impulsion nécessaire pour annuler la vitesse relative :
 
-// expliquer les maths et la phyisuqe qui sera illustrée par le code qui suit
+// expliquer les maths et la physique qui sera illustrée par le code qui suit
 
 
-*Cela s'interprete dans le code de la facon suivante*
+*Cela s'interprète dans le code de la façon suivante*
 
 ```python
 def handle_vertex_collision(self, vertex, vertex_velocity):
@@ -176,13 +178,13 @@ def handle_vertex_collision(self, vertex, vertex_velocity):
 
 ## 4 · Objets articulés : approche unifiée
 
-### 4.1 · Articulation des deux objets
+### 4.1 · Modélisation des articulations
 
 Pour simuler un objet articulé (comme un avant-bras et un biceps) nous allons avoir besoin d'un nouvel objet : une articulation. 
 
-Celle-ci reliera 2 objets, ici up-arm, low-arm (tous deux des objets de la classe Cube) et imposera un angle donné entre ces deux derniers. On assignera sur chacun de ses objets un point d'encrage (situé sur la surface de l'objet), A chaque instant de la simulation, les deux objets seront en contact sur ce point, on definiera à cet endroit la position de la jointure. 
+Celle-ci reliera 2 objets, ici up-arm, low-arm (tous deux des objets de la classe Cube) et imposera un angle donné entre ces deux derniers. On assignera sur chacun de ces objets un point d'ancrage (situé sur la surface de l'objet). À chaque instant de la simulation, les deux objets seront en contact sur ce point, on définira à cet endroit la position de la jointure. 
 
-D'autre par parmi ces deux objets, un aura le role de guide, et l'autre de quidé. Lorsque l'angle de l'articulation sera modifié durant la simulation, le guide restera fixe, et le guidé subira la rotation adapté pour respecter l'angle imposé par la jointure.
+D'autre part parmi ces deux objets, un aura le rôle de guide, et l'autre de guidé. Lorsque l'angle de l'articulation sera modifié durant la simulation, le guide restera fixe, et le guidé subira la rotation adaptée pour respecter l'angle imposé par la jointure.
 
 
 ### Implémentation en code :
@@ -213,17 +215,17 @@ $$
 Crée une asymétrie dans l'effet de la physique entre les deux corps et perturbe gravement la fiabilité de la simulation.
 
 Ainsi nous suivrons le protocole : à chaque pas, avant toute modification physique, si un angle différent est demandé par l'articulation : 
-- On part de la positon actuelle du guide
-- On regarde l'angle demandé ar l'artiulation
-- On determine la position de l'objet guidé, relativement au guide, dans l'angle imposé par l'articulation
-- On recupère enfin l'ensemble des sommets de nos objets, et on crée un Objet unifié, et c'est sur cet objet que nous effectuerons l'actualisation physique.
+- On part de la position actuelle du guide
+- On regarde l'angle demandé par l'articulation
+- On détermine la position de l'objet guidé, relativement au guide, dans l'angle imposé par l'articulation
+- On récupère enfin l'ensemble des sommets de nos objets, et on crée un objet unifié, et c'est sur cet objet que nous effectuerons l'actualisation physique.
 
-### 4.2 · Exemple de code simple pour le bras : 
+### 4.3 · Exemple de code simple pour le bras : 
 
 // code
 
-### 4.3 · Quadrupède : 9 éléments articulés
-Notre bras est fonctionnel mais ses cas d'usage sont très restreints, on peut passer à un objet plus complexe : Un Quadrupede
+### 4.4 · Quadrupède : 9 éléments articulés
+Notre bras est fonctionnel mais ses cas d'usage sont très restreints, on peut passer à un objet plus complexe : un quadrupède
 
 Pour le quadrupède, nous déclarons 9 éléments :
 - 1 corps principal (body)
@@ -235,12 +237,12 @@ Et pour relier tout cela
 
 Pour les relations guide / guidé, on choisira logiquement
 
-Body guide 1 à1 des 4 upper legs, et chaque upper leg sera la guide d'une lower leg
+Body guide 1 à 1 des 4 upper legs, et chaque upper leg sera la guide d'une lower leg
 
-### 4.4 · Protocole de mise à jour
+### 4.5 · Protocole de mise à jour
 
 L'update suit le protocole suivant :
-le symbole → signifie : *Permet de determiner*
+le symbole → signifie : *Permet de déterminer*
 
 1. **Position du corps** → positions des épaules
 2. **Angles des épaules** → positions des pattes supérieures
@@ -356,13 +358,3 @@ def apply_horizontal_traction(self, prev_vertices, current_vertices):
 ```
 
 ---
-
-## Résultat final
-
-Avec ces améliorations, vous obtenez un quadrupède capable de :
-- Maintenir son équilibre grâce aux corrections de collision
-- Se déplacer horizontalement grâce au système de traction
-- Réagir de manière réaliste aux forces physiques
-- S'adapter à différents terrains
-
-Le système est maintenant prêt pour l'apprentissage par renforcement, où un agent pourra apprendre à contrôler les articulations pour accomplir des tâches de locomotion complexes.

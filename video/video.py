@@ -1,10 +1,11 @@
+# showcase_video.py
 from manim import *
 import numpy as np
 import shutil
 
 
 class Showcase(ThreeDScene):
-    """Vidéo pédagogique : 1 visuel + 1 équation par section (6 sections)."""
+    """Vidéo pédagogique : 6 sections, chacune ↦ 1 visuel + 1 équation."""
 
     # -----------------------------------------------------------------
     # OUTILS
@@ -17,189 +18,143 @@ class Showcase(ThreeDScene):
     # SÉQUENCE PRINCIPALE
     # -----------------------------------------------------------------
     def construct(self):
-        # --------------------------------------------------------------
-        # 0 · TITRE
-        # --------------------------------------------------------------
-        title = Text("Mini-Moteur Physique 3D : Panorama", font_size=60)
-        subtitle = Text("Cube → Quadrupède articulé", font_size=36)
-        subtitle.next_to(title, DOWN, buff=0.4)
+        # Réglage caméra initial
+        self.set_camera_orientation(phi=60 * DEGREES, theta=-45 * DEGREES)
 
-        self.add_fixed_orientation_mobjects(title, subtitle)
-        self.play(FadeIn(title, shift=UP), FadeIn(subtitle))
-        self.wait(1.4)
-        self.play(FadeOut(title), FadeOut(subtitle))
+        # Axes 3D communs
+        axes = ThreeDAxes(
+            x_range=(-4, 4, 2),
+            y_range=(-4, 4, 2),
+            z_range=(-4, 4, 2),
+            x_length=6,
+            y_length=6,
+            z_length=6,
+        )
+        self.add(axes)
 
-        # ==============================================================
-        # 1 · SOL : DEMI-ESPACE y ≥ 0
-        # ==============================================================
-        self.set_camera_orientation(phi=70 * DEGREES,
-                                    theta=-45 * DEGREES,
-                                    focal_distance=400)
+        # -------------------- SECTION 1 : Sol plan --------------------
+        title1 = Text("1 · Sol plan y = 0", font_size=40).to_edge(UP)
+        eq1 = MathTex(r"y\;\geqslant\;0,\quad \mathbf n=(0,1,0)^{\top}", font_size=40)
+        eq1.next_to(title1, DOWN)
 
-        h1 = Text("1 · Sol (y ≥ 0)").to_edge(UP)
-        eq_plane = Text("Condition :  y ≥ 0     n = (0, 1, 0)")
+        plane = Square(side_length=8, fill_opacity=0.3, fill_color=BLUE_E)
+        plane.rotate(PI / 2, axis=RIGHT)
 
-        self.add_fixed_orientation_mobjects(h1, eq_plane)
-        self.play(Write(h1), Write(eq_plane))
+        self.play(Write(title1), Write(eq1))
+        self.play(FadeIn(plane, shift=IN))
+        self.wait(2)
+        self.wipe(title1, eq1, plane)
 
-        axes3d = ThreeDAxes(x_length=4, y_length=3, z_length=4)
+        # ---------------- SECTION 2 : Chute libre ---------------------
+        title2 = Text("2 · Chute libre – Euler semi-implicite", font_size=40).to_edge(UP)
+        eq2 = MathTex(
+            r"\mathbf v_{t+\Delta t} = \mathbf v_t + \mathbf g\,\Delta t,\;"
+            r"\mathbf x_{t+\Delta t} = \mathbf x_t + \mathbf v_{t+\Delta t}\,\Delta t",
+            font_size=36
+        ).scale(0.9)
+        eq2.next_to(title2, DOWN)
 
-        # Square dans le plan XZ (y = 0) → plan horizontal
-        ground = Square(side_length=4,
-                        fill_opacity=0.35,
-                        fill_color=BLUE_E,
-                        stroke_color=BLUE_E)
-        # Par défaut la face est dans le plan XY ; on la fait pivoter
-        ground.rotate(-PI / 2, axis=RIGHT)       # vers plan XZ
-        ground.shift(DOWN * 0)                   # centré sur y = 0
+        cube2 = Cube(side_length=1)
+        cube2.shift(UP * 3)
+        g_vec = Arrow(cube2.get_center(), cube2.get_center() + DOWN * 2, buff=0, color=YELLOW)
 
-        # Flèche de la normale n = (0,1,0)
-        normal_vec = Arrow(start=[0, 0, 0],
-                           end=[0, 1.5, 0],
-                           color=RED,
-                           buff=0)
-        normal_label = Text("n").next_to(normal_vec.get_end(),
-                                         RIGHT,
-                                         buff=0.1)
-        self.add_fixed_orientation_mobjects(normal_label)
+        self.play(Write(title2), Write(eq2))
+        self.play(FadeIn(cube2), GrowArrow(g_vec))
+        self.wait(2)
+        self.play(
+            cube2.animate.shift(DOWN * 3),
+            g_vec.animate.shift(DOWN * 3),
+            run_time=2,
+            rate_func=linear,
+        )
+        self.wipe(title2, eq2, cube2, g_vec)
 
-        self.play(Create(axes3d), FadeIn(ground))
-        self.play(GrowArrow(normal_vec), FadeIn(normal_label))
-        self.wait(1.4)
-        self.wipe(h1, eq_plane, axes3d, ground, normal_vec,
-                  normal_label)
+        # -------------- SECTION 3 : Collision & pénétration ----------
+        title3 = Text("3 · Collision – Correction de pénétration", font_size=40).to_edge(UP)
+        eq3 = MathTex(
+            r"\delta = \max(0,\,-p_y),\;"
+            r"\mathbf x\gets\mathbf x + \delta\,\mathbf n",
+            font_size=40
+        )
+        eq3.next_to(title3, DOWN)
 
-        # ==============================================================
-        # 2 · CHUTE D'UN CUBE : INTÉGRATION D'EULER
-        # ==============================================================
-        self.set_camera_orientation(phi=70 * DEGREES,
-                                    theta=-45 * DEGREES,
-                                    focal_distance=400)
+        cube3 = Cube(side_length=1).shift(UP * 0.6)
+        plane3 = plane.copy().set_fill(RED_E, opacity=0.3)
 
-        h2 = Text("2 · Chute & impact").to_edge(UP)
-        eq_euler = Text("v_new = v_old + g·dt      "
-                        "x_new = x_old + v_new·dt")
-        self.add_fixed_orientation_mobjects(h2, eq_euler)
-        self.play(Write(h2), Write(eq_euler))
+        self.play(Write(title3), Write(eq3))
+        self.play(FadeIn(plane3), FadeIn(cube3))
+        # collision : descendre puis corriger
+        self.play(cube3.animate.shift(DOWN * 1.2), run_time=1)
+        self.play(cube3.animate.shift(UP * 0.2), run_time=0.5)
+        self.wait(1)
+        self.wipe(title3, eq3, cube3, plane3)
 
-        axes_drop = ThreeDAxes(x_length=4, y_length=4, z_length=4)
+        # ---------------- SECTION 4 : Rotation cube ------------------
+        title4 = Text("4 · Rotation – θ, ω", font_size=40).to_edge(UP)
+        eq4 = MathTex(
+            r"\boldsymbol\theta_{t+\Delta t} = "
+            r"\boldsymbol\theta_t + \boldsymbol\omega_t\,\Delta t",
+            font_size=40
+        )
+        eq4.next_to(title4, DOWN)
 
-        # On réutilise le même sol pour le visuel
-        drop_ground = ground.copy()
+        cube4 = Cube(side_length=1)
+        self.play(Write(title4), Write(eq4), FadeIn(cube4))
+        self.play(Rotate(cube4, angle=PI / 2, axis=RIGHT), run_time=2)
+        self.wait(1)
+        self.wipe(title4, eq4, cube4)
 
-        cube = Cube(side_length=1)
-        cube.move_to(axes_drop.c2p(0, 3, 0))
+        # ------------- SECTION 5 : Joint & articulation --------------
+        title5 = Text("5 · Articulation – Angle imposé", font_size=40).to_edge(UP)
+        eq5 = MathTex(
+            r"\alpha_\text{joint} = \arccos\left("
+            r"\frac{(\mathbf u\cdot\mathbf v)}{\|\,\mathbf u\|\|\,\mathbf v\|}"
+            r"\right)",
+            font_size=40
+        )
+        eq5.next_to(title5, DOWN)
 
-        self.play(Create(axes_drop), FadeIn(drop_ground), FadeIn(cube))
+        cube_a = Cube(side_length=0.8).shift(LEFT * 1.2)
+        cube_b = Cube(side_length=0.8).shift(RIGHT * 1.2)
+        joint_line = Line(cube_a.get_center(), cube_b.get_center(), color=GREEN)
 
-        # Animation : chute puis rebond amorti (coefficient 0.7)
-        self.play(cube.animate.move_to(axes_drop.c2p(0, 0.5, 0)),
-                  run_time=1.2,
-                  rate_func=smooth)
-        self.play(cube.animate.move_to(axes_drop.c2p(0, 1.1, 0)),
-                  run_time=0.6,
-                  rate_func=there_and_back)
+        self.play(Write(title5), Write(eq5))
+        self.play(FadeIn(cube_a), FadeIn(cube_b), GrowFromCenter(joint_line))
+        self.play(
+            Rotate(cube_b, angle=PI / 4, axis=OUT, about_point=cube_a.get_center()),
+            joint_line.animate.put_start_and_end_on(cube_a.get_center(), cube_b.get_center()),
+            run_time=2,
+        )
+        self.wait(1)
+        self.wipe(title5, eq5, cube_a, cube_b, joint_line)
 
-        self.wait(1.4)
-        self.wipe(h2, eq_euler, axes_drop, drop_ground, cube)
+        # ------------ SECTION 6 : Traction horizontale ---------------
+        title6 = Text("6 · Traction horizontale & friction", font_size=40).to_edge(UP)
+        eq6 = MathTex(
+            r"\mathbf J_\text{traction} = -\frac{m\,\Delta\mathbf r_{\,\parallel}}{\Delta t},\;"
+            r"|\mathbf J|\le \mu_s m g\,\Delta t",
+            font_size=36
+        ).scale(0.9)
+        eq6.next_to(title6, DOWN)
 
-        # --------------------------------------------------------------
-        # 3 · REBOND & COUPLE
-        # --------------------------------------------------------------
-        h3 = Text("3 · Rebond & couple").to_edge(UP)
-        eq_impulse = Text("J = -v_rel / (1/m + ((r×n)·(r×n)) / I_yy)")
-        self.add_fixed_orientation_mobjects(h3, eq_impulse)
-        self.play(Write(h3), Write(eq_impulse))
+        cube6 = Cube(side_length=1).shift(UP * 0.5 + LEFT * 2)
+        traj_arrow = Arrow(
+            cube6.get_center(),
+            cube6.get_center() + RIGHT * 4,
+            buff=0.1,
+            color=ORANGE,
+            stroke_width=4,
+        )
 
-        axes3 = Axes(x_range=[0, 0.6, 0.1],
-                     y_range=[-2, 32, 10],
-                     x_length=5,
-                     y_length=2.7)
-        ωx = lambda t: 30 * np.exp(-5 * t)
-        ωz = lambda t: 18 * np.exp(-5 * t)
-        curve_ωx = axes3.plot(ωx, x_range=[0, 0.6])
-        curve_ωz = axes3.plot(ωz, x_range=[0, 0.6], color=YELLOW)
-        axes3_lab = axes3.get_axis_labels(Text("t"),
-                                          Text("ω (rad/s)"))
-        legend = VGroup(Text("ω_x", color=WHITE),
-                        Text("ω_z", color=YELLOW)).arrange(DOWN,
-                                                           aligned_edge=LEFT
-                                                           ).scale(0.4)
-        legend.next_to(axes3, RIGHT)
+        self.play(Write(title6), Write(eq6))
+        self.play(FadeIn(cube6))
+        self.play(GrowArrow(traj_arrow), cube6.animate.shift(RIGHT * 4), run_time=2)
+        self.wait(1)
+        self.wipe(title6, eq6, cube6, traj_arrow)
 
-        self.play(Create(axes3), Write(axes3_lab), Create(curve_ωx),
-                  Create(curve_ωz), FadeIn(legend))
-        self.wait(1.2)
-        self.wipe(h3, eq_impulse, axes3, axes3_lab, curve_ωx,
-                  curve_ωz, legend)
-
-        # --------------------------------------------------------------
-        # 4 · INERTIE COMPOSÉE
-        # --------------------------------------------------------------
-        h4 = Text("4 · Inertie composée").to_edge(UP)
-        eq_inertia = Text("I_tot = Σ m_i ( I_i + d_i² )")
-        matrix = Text("I_tot ≈ diag(0.12, 0.10, 0.14)").scale(0.75)
-        matrix.next_to(eq_inertia, DOWN)
-        self.add_fixed_orientation_mobjects(h4, eq_inertia, matrix)
-        self.play(Write(h4), Write(eq_inertia), Write(matrix))
-        self.wait(1.2)
-        self.wipe(h4, eq_inertia, matrix)
-
-        # --------------------------------------------------------------
-        # 5 · TRACTION & FRICTION
-        # --------------------------------------------------------------
-        h5 = Text("5 · Traction : μ_s / μ_k").to_edge(UP)
-        eq_friction = Text("|J_t| ≤ μ_s · |J_n|")
-        self.add_fixed_orientation_mobjects(h5, eq_friction)
-        self.play(Write(h5), Write(eq_friction))
-
-        axes5 = Axes(x_range=[-0.3, 0.3, 0.1],
-                     y_range=[0, 0.6, 0.2],
-                     x_length=5,
-                     y_length=2.7)
-
-        def μ_curve(x):
-            μ_s, μ_k, v_s = 0.5, 0.25, 0.02
-            return μ_s * 0.3 if abs(x) < v_s else μ_k * 0.3
-
-        fcurve = axes5.plot(μ_curve, x_range=[-0.3, 0.3],
-                            use_smoothing=False)
-        axes5_lab = axes5.get_axis_labels(Text("v_t"),
-                                          Text("|J_t|"))
-
-        self.play(Create(axes5), Write(axes5_lab), Create(fcurve))
-        self.wait(1.2)
-        self.wipe(h5, eq_friction, axes5, axes5_lab, fcurve)
-
-        # --------------------------------------------------------------
-        # 6 · ARTICULATION ÉPAULE — COUDE
-        # --------------------------------------------------------------
-        h6 = Text("6 · Articulation : épaule / coude").to_edge(UP)
-        eq_joint = Text("θ_new = θ_old + ω · dt")
-        self.add_fixed_orientation_mobjects(h6, eq_joint)
-        self.play(Write(h6), Write(eq_joint))
-
-        axes6 = Axes(x_range=[0, 1, 0.2],
-                     y_range=[-30, 60, 15],
-                     x_length=5,
-                     y_length=2.7)
-        θ_shoulder = lambda t: 45 * np.sin(2 * np.pi * t)
-        curve_sh = axes6.plot(θ_shoulder, x_range=[0, 1])
-        axes6_lab = axes6.get_axis_labels(Text("t"),
-                                          Text("θ (°)"))
-        self.play(Create(axes6), Write(axes6_lab), Create(curve_sh))
-        self.wait(1.2)
-        self.wipe(h6, eq_joint, axes6, axes6_lab, curve_sh)
-
-        # --------------------------------------------------------------
-        # FINALE : MOSAÏQUE DES TITRES
-        # --------------------------------------------------------------
-        titles = VGroup(*[Text(txt, font_size=28) for txt in [
-            "Sol", "Chute", "Rebond", "Inertie",
-            "Friction", "Articulation"
-        ]]).arrange(DOWN, buff=0.5)
-        self.add_fixed_orientation_mobjects(titles)
-        self.play(FadeIn(titles))
+        # Fin
+        end_text = Text("Fin – Merci !", font_size=48)
+        self.play(Write(end_text))
         self.wait(2)
 
 
@@ -208,6 +163,7 @@ class Showcase(ThreeDScene):
 # ---------------------------------------------------------------------
 if __name__ == "__main__":
     import os, sys
+
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     config.media_dir = config.video_dir = config.images_dir = "./video_output"
     if os.path.exists("./video_output"):
