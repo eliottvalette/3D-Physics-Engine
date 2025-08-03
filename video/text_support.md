@@ -222,7 +222,39 @@ Ainsi nous suivrons le protocole : à chaque pas, avant toute modification physi
 
 ### 4.3 · Exemple de code simple pour le bras : 
 
-// code
+Voici un exemple simplifié d'un bras articulé avec deux segments (bras supérieur et avant-bras) :
+
+```python
+```
+
+```python
+class Arm:
+    def __init__(self, upper_arm, lower_arm, joint):
+        self.upper_arm = upper_arm
+        self.lower_arm = lower_arm
+        self.joint = joint
+        self.vertices = []
+    
+    def update_vertices(self):
+        # Calculer la position de l'avant-bras basée sur l'angle du joint
+        joint_angle = self.joint.angle
+        shoulder_pos = self.upper_arm.position
+        elbow_pos = self.calculate_elbow_position(shoulder_pos, joint_angle)
+        
+        # Assembler tous les vertices 
+        updated_upper_arm_vertices = self.upper_arm.get_vertices()
+        updated_lower_arm_vertices = self.lower_arm.get_vertices()
+        self.vertices = (updated_upper_arm_vertices + 
+                        updated_lower_arm_vertices)                        
+
+# Utilisation
+upper_arm = Cube(position=[0, 4, 0])
+lower_arm = Cube(position=[0, 2, 0])
+joint = Joint(upper_arm, lower_arm, angle=0)
+arm = Arm(upper_arm, lower_arm, joint)
+```
+
+Cet exemple illustre l'approche unifiée : plutôt que de traiter chaque segment séparément, nous calculons tous les vertices transformés en une seule fois, puis nous traitons l'ensemble comme un objet unique pour la physique.
 
 ### 4.4 · Quadrupède : 9 éléments articulés
 Notre bras est fonctionnel mais ses cas d'usage sont très restreints, on peut passer à un objet plus complexe : un quadrupède

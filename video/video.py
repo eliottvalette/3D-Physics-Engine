@@ -19,7 +19,7 @@ class Showcase(ThreeDScene):
     # -----------------------------------------------------------------
     def construct(self):
         # Réglage caméra initial
-        self.set_camera_orientation(phi=60 * DEGREES, theta=-45 * DEGREES)
+        self.set_camera_orientation(phi = -25 * DEGREES, frame_center = [0.5, 0, 0] )
 
         # Axes 3D communs
         axes = ThreeDAxes(
