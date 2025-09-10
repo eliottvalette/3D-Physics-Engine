@@ -196,15 +196,21 @@ class QuadrupedEnv:
         next_state = self.get_state()
         # ---- REWARD ---
         # ----------  a) distance à l'origine (suivant Z uniquement) --------------
-        distance_to_origin_x = abs(self.quadruped.position[2])
+        distance_to_origin_z = abs(self.quadruped.position[2])
+        distance_to_origin_x = abs(self.quadruped.position[0])
         
-        if self.prev_radius is not None and self.prev_radius < distance_to_origin_x :
-            distance_reward = 0.2 + np.sqrt((distance_to_origin_x - self.prev_radius))* 4
+        if self.prev_radius is not None and self.prev_radius < distance_to_origin_z :
+            distance_reward = 0.2 + np.sqrt((distance_to_origin_z - self.prev_radius))* 2 - distance_to_origin_x * 0.2
         else :
-            distance_reward = - 0.2
+            distance_reward = - 0.2 - distance_to_origin_x * 0.2
         
-        self.prev_radius = distance_to_origin_x
-        # ----------  b)  Pénalité d'inclinaison du corps (pénalité brute) --------------
+        self.prev_radius = distance_to_origin_z
+
+        # ----------  b) Vitesse (suivant Z uniquement) --------------
+        x_speed, y_speed, z_speed = abs(self.quadruped.velocity[0]), abs(self.quadruped.velocity[1]), -self.quadruped.velocity[2] # On choisit de le recompenser dans la direction vers la camera, cela pourrait tout à fait être l'inverse. Pour les autres, peut import le sens, c'est mauvais
+        z_speed_reward = z_speed * 0.5
+
+        # ----------  c)  Pénalité d'inclinaison du corps (pénalité brute) --------------
         pitch, yaw, roll = self.quadruped.rotation
         pitch = ((pitch + np.pi) % (2 * np.pi)) - np.pi
         yaw = ((yaw + np.pi) % (2 * np.pi)) - np.pi
@@ -214,14 +220,14 @@ class QuadrupedEnv:
         else:
             tilt_penalty = 0.0
         
-        # ----------  c)  Récompense principale --------------
+        # ----------  d)  Récompense principale --------------
         sparse_reward = 0.0
         for r in self.circle_radii:
-            if distance_to_origin_x >= r and r not in self.circles_passed:
+            if distance_to_origin_z >= r and r not in self.circles_passed:
                 sparse_reward += 2.0
                 self.circles_passed.add(r)
 
-        # ----------  d)  Mouvement des articulations ----------------
+        # ----------  e)  Mouvement des articulations ----------------
         immobile_penalty = 0.0
         for i in range(4):
             shoulder_activity = abs(self.quadruped.shoulder_velocities[i])
@@ -231,7 +237,7 @@ class QuadrupedEnv:
             if elbow_activity == 0 :
                 immobile_penalty += 0.25
 
-        # ----------  e)  Pénalité des angles extremes ----------------
+        # ----------  f)  Pénalité des angles extremes ----------------
         angle_penalty = 0.0
         for i in range(4):
             if abs(self.quadruped.shoulder_angles[i]) > np.pi/2 * 0.9:
@@ -272,6 +278,7 @@ class QuadrupedEnv:
 
         # ----------  d)  Somme finale -------------------------
         reward = (distance_reward
+                  + z_speed_reward
                   + sparse_reward
                   + tilt_penalty
                   + gait_reward)

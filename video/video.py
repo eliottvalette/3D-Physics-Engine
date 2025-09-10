@@ -2,6 +2,7 @@
 from manim import *
 import numpy as np
 import shutil
+import os
 
 
 class Showcase(ThreeDScene):
@@ -158,6 +159,21 @@ class Showcase(ThreeDScene):
         self.wait(2)
 
 
+def cleanup_temp_folders():
+    """Nettoie les dossiers temporaires créés par Manim."""
+    temp_folders = ["partial_movie_files", "Tex", "texts"]
+    video_output_dir = "./video_output"
+    
+    for folder in temp_folders:
+        folder_path = os.path.join(video_output_dir, folder)
+        if os.path.exists(folder_path):
+            try:
+                shutil.rmtree(folder_path)
+                print(f"✓ Dossier temporaire supprimé : {folder}")
+            except Exception as e:
+                print(f"✗ Erreur lors de la suppression de {folder}: {e}")
+
+
 # ---------------------------------------------------------------------
 # REND AUTOMATIQUEMENT LA VIDÉO
 # ---------------------------------------------------------------------
@@ -169,4 +185,8 @@ if __name__ == "__main__":
     if os.path.exists("./video_output"):
         shutil.rmtree("./video_output")
     Showcase().render()
+
+    # Nettoyage des dossiers temporaires créés par Manim
+    cleanup_temp_folders()
+
     print("Vidéo sauvegardée → ./video_output/")
